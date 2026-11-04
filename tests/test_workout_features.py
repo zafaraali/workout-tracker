@@ -813,6 +813,9 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b"renderProgressChart", response.data)
         self.assertIn(b"estimated-1rm", response.data)
         self.assertIn(b"Weekly muscle volume", response.data)
+        self.assertIn(b'id="progress-more-details" class="progress-details"', response.data)
+        self.assertIn(b"More progress insights", response.data)
+        self.assertIn(b"id=\"progress-chart-content\"", response.data)
         self.assertIn(b"Controlled tempo", response.data)
 
     def test_library_has_search_and_category_filters_and_set_notes_input(self):

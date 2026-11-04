@@ -368,6 +368,7 @@ function renderProgressChart() {
 
     if (!points.length) {
         emptyMessage.classList.remove("hidden");
+        document.getElementById("progress-chart-content").classList.add("hidden");
         const message = document.getElementById("progress-empty-message");
         if (message) {
             message.textContent = (window.progressData || []).length
@@ -379,6 +380,7 @@ function renderProgressChart() {
         return;
     }
     emptyMessage.classList.add("hidden");
+    document.getElementById("progress-chart-content").classList.remove("hidden");
 
     const maxValue = Math.max(...points.map((point) => point.value), 1);
     const chartWidth = 720;
@@ -519,6 +521,11 @@ function renderMuscleVolumeChart() {
         ? `${difference >= 0 ? "+" : ""}${((difference / previousWeek) * 100).toFixed(1)}% vs last week`
         : "No prior-week volume to compare";
     summary.textContent = `${category}: this week ${thisWeek.toFixed(1)} kg × reps; last week ${previousWeek.toFixed(1)} kg × reps (${comparison}). Eight weekly totals are listed below.`;
+}
+
+function initializeProgressDetails() {
+    const details = document.getElementById("progress-more-details");
+    if (details) details.classList.toggle("hidden", !(window.progressData || []).length);
 }
 
 function renderPersonalRecords(exercise) {
