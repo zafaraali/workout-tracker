@@ -130,11 +130,22 @@ def _workout_groups(workouts, selected_date=""):
                 "date": workout.get("date", ""),
                 "name": workout.get("session_name") or "Workout",
                 "sets": [],
+                "duration": 0,
             }
             grouped[session_id] = group
             groups.append(group)
         grouped[session_id]["sets"].append({"index": index, "workout": workout})
+        grouped[session_id]["duration"] = max(
+            grouped[session_id]["duration"], _elapsed_seconds(workout.get("elapsed_seconds", 0))
+        )
     return list(reversed(groups))
+
+
+def _elapsed_seconds(value):
+    try:
+        return max(0, min(int(value), 86400))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _goal_progress(goals, measurements):
@@ -151,26 +162,33 @@ def _goal_progress(goals, measurements):
             continue
         value_field, unit_field = fields[metric]
         entries = sorted(
-            (item for item in measurements if item.get(value_field)),
+            (
+                item for item in measurements
+                if _valid_positive_number(item.get(value_field)) is not None
+            ),
             key=lambda item: item.get("date", ""),
         )
         if not entries:
             progress.append({**goal, "current": None, "progress": 0, "complete": False})
             continue
-        target = float(goal["target"])
-        baseline = float(entries[0][value_field])
-        latest = float(entries[-1][value_field])
+        target = _valid_positive_number(goal.get("target"))
+        latest = _valid_positive_number(entries[-1].get(value_field))
+        baseline = _valid_positive_number(goal.get("baseline", entries[0].get(value_field)))
+        if target is None or latest is None or baseline is None:
+            progress.append({**goal, "current": None, "progress": 0, "complete": False})
+            continue
+        baseline_unit = goal.get("baseline_unit", entries[0].get(unit_field, ""))
         if metric == "body_weight" and goal.get("unit") == "kg":
-            baseline = baseline * (0.45359237 if entries[0].get(unit_field) == "lb" else 1)
+            baseline = baseline * (0.45359237 if baseline_unit == "lb" else 1)
             latest = latest * (0.45359237 if entries[-1].get(unit_field) == "lb" else 1)
         elif metric == "body_weight" and goal.get("unit") == "lb":
-            baseline = baseline / (0.45359237 if entries[0].get(unit_field) == "kg" else 1)
+            baseline = baseline / (0.45359237 if baseline_unit == "kg" else 1)
             latest = latest / (0.45359237 if entries[-1].get(unit_field) == "kg" else 1)
         direction = goal.get("direction", "decrease")
         denominator = target - baseline if direction == "increase" else baseline - target
         numerator = latest - baseline if direction == "increase" else baseline - latest
         percentage = 100 if (latest >= target if direction == "increase" else latest <= target) else (
-            max(0, min(100, numerator / denominator * 100)) if denominator else 0
+            max(0, min(100, numerator / denominator * 100)) if denominator > 0 else 0
         )
         progress.append({
             **goal,
@@ -179,6 +197,87 @@ def _goal_progress(goals, measurements):
             "complete": percentage >= 100,
         })
     return progress
+
+
+def _valid_positive_number(value):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) and result > 0 else None
+
+
+def _training_insights(workouts, today):
+    daily_dates = set()
+    weekly_volume = {}
+    recent_volumes = [0.0, 0.0, 0.0, 0.0]
+    for workout in workouts:
+        try:
+            workout_date = datetime.date.fromisoformat(workout.get("date", ""))
+        except (TypeError, ValueError):
+            continue
+        if workout_date > today:
+            continue
+        daily_dates.add(workout_date)
+        days_ago = (today - workout_date).days
+        if not 0 <= days_ago < 28:
+            continue
+        week_index = days_ago // 7
+        if workout.get("set_type") not in {"cardio", "warmup"}:
+            weight = _valid_positive_number(workout.get("weight")) or 0
+            if workout.get("unit") == "lb":
+                weight *= 0.45359237
+            try:
+                reps = max(0, int(workout.get("reps", 0)))
+            except (TypeError, ValueError):
+                reps = 0
+            volume = weight * reps
+            recent_volumes[week_index] += volume
+            if week_index == 0:
+                muscle = workout.get("muscle") or "Other"
+                item = weekly_volume.setdefault(muscle, {"volume": 0.0, "sets": 0})
+                item["volume"] += volume
+                item["sets"] += 1
+
+    streak = 0
+    streak_date = today if today in daily_dates else today - datetime.timedelta(days=1)
+    while streak_date in daily_dates:
+        streak += 1
+        streak_date -= datetime.timedelta(days=1)
+
+    last_workout = max(daily_dates, default=None)
+    days_since = (today - last_workout).days if last_workout else None
+    prior_average = sum(recent_volumes[1:]) / 3
+    recovery_note = ""
+    if days_since is None:
+        recovery_note = "Log a workout to start tracking consistency."
+    elif days_since >= 7:
+        recovery_note = f"It has been {days_since} days since your last workout."
+    elif prior_average > 0 and recent_volumes[0] > prior_average * 1.5:
+        recovery_note = "Your last 7 days were over 150% of your prior 3-week average volume. Consider recovery or a deload if you feel you need it."
+    else:
+        recovery_note = "No inactivity or unusually high-volume reminder right now."
+
+    return {
+        "weekly_volume": [
+            {
+                "muscle": muscle,
+                "volume": round(values["volume"], 1),
+                "sets": values["sets"],
+            }
+            for muscle, values in sorted(
+                weekly_volume.items(), key=lambda item: (-item[1]["volume"], item[0].casefold())
+            )
+        ],
+        "training_days": sum(
+            1 for workout_date in daily_dates if 0 <= (today - workout_date).days < 7
+        ),
+        "streak": streak,
+        "days_since": days_since,
+        "recovery_note": recovery_note,
+        "recent_week_volume": round(recent_volumes[0], 1),
+        "prior_week_average": round(prior_average, 1),
+    }
 
 
 @main.route("/")
@@ -232,6 +331,7 @@ def index():
         calendar_days.append({"date": "", "day": "", "count": 0})
 
     active_session_id = request.args.get("session_id", "").strip()
+    training_insights = _training_insights(data["workouts"], datetime.date.today())
     measurements = list(reversed(data["measurements"]))
     for measurement_index, measurement in enumerate(reversed(data["measurements"])):
         if not measurement.get("id"):
@@ -252,6 +352,7 @@ def index():
         exercise_names=exercises,
         workout_groups=_workout_groups(data["workouts"], selected_date),
         progress_workouts=data["workouts"],
+        training_insights=training_insights,
         routines=data["routines"],
         measurements=measurements,
         goals=_goal_progress(data["goals"], data["measurements"]),
@@ -275,9 +376,14 @@ def index():
             for name, sets in active_exercises.items()
         ],
         active_session_duration=max(
-            (item["workout"].get("elapsed_seconds", 0) for item in active_session_sets),
+            (_elapsed_seconds(item["workout"].get("elapsed_seconds", 0)) for item in active_session_sets),
             default=0,
         ),
+        active_session_finished=bool(
+            active_session_sets
+            and all(item["workout"].get("finished") for item in active_session_sets)
+        ),
+        active_session_started=bool(active_session_sets),
         active_session_name=(
             active_session_sets[0]["workout"].get("session_name", "Workout")
             if active_session_sets else ""
@@ -341,6 +447,7 @@ def edit_workout(index):
     updated["session_name"] = request.form.get("session_name", "").strip()[:100] or "Workout"
     updated["elapsed_seconds"] = previous.get("elapsed_seconds", 0)
     updated["superset_group"] = previous.get("superset_group", "")
+    updated["finished"] = previous.get("finished", False)
     data["workouts"][index] = updated
 
     if previous.get("session_id"):
@@ -364,6 +471,72 @@ def delete_workout(index):
     save_data(data)
     flash("Workout set deleted.", "success")
     return redirect(url_for("main.index", tab="history"))
+
+
+@main.route("/duplicate_workout/<int:index>", methods=["POST"])
+def duplicate_workout(index):
+    data = load_data()
+    if index < 0 or index >= len(data["workouts"]):
+        flash("Workout set could not be found.", "error")
+        return redirect(url_for("main.index", tab="history"))
+
+    original = data["workouts"][index]
+    duplicate = dict(original)
+    duplicate["date"] = request.form.get("date", "").strip()
+    try:
+        datetime.date.fromisoformat(duplicate["date"])
+    except ValueError:
+        flash("Choose a valid date for the copied set.", "error")
+        return redirect(url_for("main.index", tab="history"))
+    duplicate["session_id"] = str(uuid.uuid4())
+    duplicate["session_name"] = (original.get("session_name") or "Workout")[:100]
+    duplicate["entry_id"] = str(uuid.uuid4())
+    duplicate["elapsed_seconds"] = 0
+    duplicate["finished"] = False
+    data["workouts"].append(duplicate)
+    save_data(data)
+    flash("Set copied to a new workout.", "success")
+    return redirect(url_for("main.index", tab="history", date=duplicate["date"]))
+
+
+@main.route("/duplicate_session", methods=["POST"])
+def duplicate_session():
+    data = load_data()
+    session_id = request.form.get("session_id", "").strip()
+    workout_date = request.form.get("date", "").strip()
+    try:
+        datetime.date.fromisoformat(workout_date)
+    except ValueError:
+        flash("Choose a valid date for the copied workout.", "error")
+        return redirect(url_for("main.index", tab="history"))
+
+    if session_id.startswith("legacy:"):
+        source_date = session_id.removeprefix("legacy:")
+        source = [
+            item for item in data["workouts"]
+            if not item.get("session_id") and item.get("date") == source_date
+        ]
+    else:
+        source = [item for item in data["workouts"] if item.get("session_id") == session_id]
+    if not source:
+        flash("Workout could not be found.", "error")
+        return redirect(url_for("main.index", tab="history"))
+
+    new_session_id = str(uuid.uuid4())
+    for workout in source:
+        duplicate = dict(workout)
+        duplicate.update({
+            "date": workout_date,
+            "session_id": new_session_id,
+            "session_name": f"{workout.get('session_name') or 'Workout'} (copy)"[:100],
+            "entry_id": str(uuid.uuid4()),
+            "elapsed_seconds": 0,
+            "finished": False,
+        })
+        data["workouts"].append(duplicate)
+    save_data(data)
+    flash(f"Workout copied with {len(source)} set(s).", "success")
+    return redirect(url_for("main.index", tab="history", date=workout_date))
 
 
 @main.route("/edit_session", methods=["POST"])
@@ -411,53 +584,6 @@ def delete_session():
         flash("Workout could not be identified.", "error")
         return redirect(url_for("main.index", tab="history"))
 
-
-@main.route("/update_session_structure", methods=["POST"])
-def update_session_structure():
-        data = load_data()
-        session_id = request.form.get("session_id", "").strip()
-        session_workouts = [
-            item for item in data["workouts"] if item.get("session_id") == session_id
-        ]
-        try:
-            order = json.loads(request.form.get("exercise_order", "[]"))
-            groups = json.loads(request.form.get("superset_groups", "{}"))
-            current_exercises = list(dict.fromkeys(item.get("exercise", "") for item in session_workouts))
-            if (
-                not session_id
-                or not session_workouts
-                or not isinstance(order, list)
-                or len(order) != len(current_exercises)
-                or set(order) != set(current_exercises)
-                or not isinstance(groups, dict)
-            ):
-                raise ValueError("Invalid workout exercise order.")
-            if any(value not in {"", "A", "B", "C", "D", "E"} for value in groups.values()):
-                raise ValueError("Invalid superset group.")
-        except (ValueError, TypeError, json.JSONDecodeError):
-            flash("Workout structure could not be updated.", "error")
-            return redirect(url_for("main.index", tab="log", session_id=session_id))
-
-        rank = {name: index for index, name in enumerate(order)}
-        indexed_session = [
-            (index, item)
-            for index, item in enumerate(data["workouts"])
-            if item.get("session_id") == session_id
-        ]
-        sorted_session = sorted(
-            indexed_session,
-            key=lambda pair: (rank[pair[1].get("exercise", "")], pair[0]),
-        )
-        for (index, _), (_, updated) in zip(indexed_session, sorted_session):
-            updated["superset_group"] = groups.get(updated.get("exercise", ""), "")
-        ordered_items = [item for _, item in sorted_session]
-        insert_at = min(index for index, _ in indexed_session)
-        remaining = [item for item in data["workouts"] if item.get("session_id") != session_id]
-        data["workouts"] = remaining[:insert_at] + ordered_items + remaining[insert_at:]
-        save_data(data)
-        flash("Workout exercise order and supersets updated.", "success")
-        return redirect(url_for("main.index", tab="log", session_id=session_id))
-
     if session_id.startswith("legacy:"):
         matching = lambda workout: (
             not workout.get("session_id") and workout.get("date") == workout_date
@@ -476,6 +602,78 @@ def update_session_structure():
 
     save_data(data)
     flash(f"Workout deleted along with its {deleted_count} set(s).", "success")
+    return redirect(url_for("main.index", tab="history"))
+
+
+@main.route("/update_session_structure", methods=["POST"])
+def update_session_structure():
+    data = load_data()
+    session_id = request.form.get("session_id", "").strip()
+    session_workouts = [
+        item for item in data["workouts"] if item.get("session_id") == session_id
+    ]
+    try:
+        order = json.loads(request.form.get("exercise_order", "[]"))
+        groups = json.loads(request.form.get("superset_groups", "{}"))
+        current_exercises = list(dict.fromkeys(item.get("exercise", "") for item in session_workouts))
+        if (
+            not session_id
+            or not session_workouts
+            or not isinstance(order, list)
+            or len(order) != len(current_exercises)
+            or set(order) != set(current_exercises)
+            or not isinstance(groups, dict)
+        ):
+            raise ValueError("Invalid workout exercise order.")
+        if any(value not in {"", "A", "B", "C", "D", "E"} for value in groups.values()):
+            raise ValueError("Invalid superset group.")
+    except (ValueError, TypeError, json.JSONDecodeError):
+        flash("Workout structure could not be updated.", "error")
+        return redirect(url_for("main.index", tab="log", session_id=session_id))
+
+    rank = {name: index for index, name in enumerate(order)}
+    indexed_session = [
+        (index, item)
+        for index, item in enumerate(data["workouts"])
+        if item.get("session_id") == session_id
+    ]
+    sorted_session = sorted(
+        indexed_session,
+        key=lambda pair: (rank[pair[1].get("exercise", "")], pair[0]),
+    )
+    for _, updated in sorted_session:
+        updated["superset_group"] = groups.get(updated.get("exercise", ""), "")
+    ordered_items = [item for _, item in sorted_session]
+    insert_at = min(index for index, _ in indexed_session)
+    remaining = [item for item in data["workouts"] if item.get("session_id") != session_id]
+    data["workouts"] = remaining[:insert_at] + ordered_items + remaining[insert_at:]
+    save_data(data)
+    flash("Workout exercise order and supersets updated.", "success")
+    return redirect(url_for("main.index", tab="log", session_id=session_id))
+
+
+@main.route("/finish_session", methods=["POST"])
+def finish_session():
+    data = load_data()
+    session_id = request.form.get("session_id", "").strip()
+    try:
+        elapsed_seconds = int(request.form.get("elapsed_seconds", "0"))
+        if not 0 <= elapsed_seconds <= 86400:
+            raise ValueError
+    except ValueError:
+        flash("Workout duration is invalid.", "error")
+        return redirect(url_for("main.index", tab="log", session_id=session_id))
+    matching = [item for item in data["workouts"] if item.get("session_id") == session_id]
+    if not matching:
+        flash("Workout could not be found.", "error")
+    else:
+        for item in matching:
+            item["elapsed_seconds"] = max(
+                _elapsed_seconds(item.get("elapsed_seconds", 0)), elapsed_seconds
+            )
+            item["finished"] = True
+        save_data(data)
+        flash("Workout duration saved.", "success")
     return redirect(url_for("main.index", tab="history"))
 
 
@@ -644,23 +842,41 @@ def _validated_routine_exercises(items, exercises):
         if (muscle, exercise) in seen:
             raise ValueError("Remove duplicate exercises from the routine.")
         target_sets = int(item.get("target_sets", 3))
+        warmup_sets = int(item.get("warmup_sets", 0))
         rest_seconds = int(item.get("rest_seconds", 90))
         target_reps = str(item.get("target_reps", "8-12")).strip()[:30]
         target_weight = str(item.get("target_weight", "")).strip()
+        warmup_weight = str(item.get("warmup_weight", "")).strip()
+        weight_increment = str(item.get("weight_increment", "0")).strip() or "0"
         notes = str(item.get("notes", "")).strip()[:300]
-        if not 1 <= target_sets <= 30 or not 0 <= rest_seconds <= 3600 or not target_reps:
-            raise ValueError("Routine targets are outside the allowed range.")
-        if target_weight and (
-            not math.isfinite(float(target_weight)) or float(target_weight) < 0
+        if (
+            not 1 <= target_sets <= 30
+            or not 0 <= warmup_sets <= 10
+            or not 0 <= rest_seconds <= 3600
+            or not target_reps
         ):
-            raise ValueError("Target weight must be a non-negative number.")
+            raise ValueError("Routine targets are outside the allowed range.")
+        numeric_weights = {}
+        for field, value in (
+            ("target_weight", target_weight),
+            ("warmup_weight", warmup_weight),
+            ("weight_increment", weight_increment),
+        ):
+            if value:
+                number = float(value)
+                if not math.isfinite(number) or number < 0:
+                    raise ValueError("Routine weights and progression increments must be non-negative numbers.")
+                numeric_weights[field] = str(number)
         validated.append(
             {
                 "muscle": muscle,
                 "exercise": exercise,
                 "target_sets": target_sets,
+                "warmup_sets": warmup_sets,
+                "warmup_weight": numeric_weights.get("warmup_weight", ""),
                 "target_reps": target_reps,
-                "target_weight": target_weight,
+                "target_weight": numeric_weights.get("target_weight", ""),
+                "weight_increment": numeric_weights.get("weight_increment", "0"),
                 "rest_seconds": rest_seconds,
                 "notes": notes,
             }
@@ -846,7 +1062,7 @@ def save_goal():
     target_date = request.form.get("target_date", "").strip()
     if metric not in {"body_weight", "waist", "chest", "hips"}:
         flash("Choose a supported goal metric.", "error")
-        return redirect(url_for("main.index", tab="goals"))
+        return redirect(url_for("main.index", tab="measurements"))
     try:
         numeric_target = float(target)
         if not math.isfinite(numeric_target) or numeric_target <= 0:
@@ -864,18 +1080,28 @@ def save_goal():
             datetime.date.fromisoformat(target_date)
     except (ValueError, TypeError):
         flash("Enter a valid goal target, direction, unit, and optional date.", "error")
-        return redirect(url_for("main.index", tab="goals"))
-    data["goals"].append({
+        return redirect(url_for("main.index", tab="measurements"))
+    measurement_field = metric
+    latest = next(
+        (item for item in sorted(data["measurements"], key=lambda item: item.get("date", ""), reverse=True)
+         if item.get(measurement_field)),
+        None,
+    )
+    goal = {
         "id": str(uuid.uuid4()),
         "metric": metric,
         "target": str(numeric_target),
         "unit": unit,
         "direction": direction,
         "target_date": target_date,
-    })
+    }
+    if latest:
+        goal["baseline"] = latest[measurement_field]
+        goal["baseline_unit"] = latest.get("unit", "")
+    data["goals"].append(goal)
     save_data(data)
     flash("Goal saved.", "success")
-    return redirect(url_for("main.index", tab="goals"))
+    return redirect(url_for("main.index", tab="measurements"))
 
 
 @main.route("/delete_goal/<goal_id>", methods=["POST"])
@@ -888,12 +1114,12 @@ def delete_goal(goal_id):
     else:
         save_data(data)
         flash("Goal deleted.", "success")
-    return redirect(url_for("main.index", tab="goals"))
+    return redirect(url_for("main.index", tab="measurements"))
 
 
 def _csv_safe(value):
     text = "" if value is None else str(value)
-    if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+    if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
         return "'" + text
     return text
 
@@ -945,6 +1171,111 @@ def export_backup():
             )
         },
     )
+
+
+@main.route("/export/routines.json")
+def export_routines():
+    return Response(
+        json.dumps(load_data()["routines"], indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=irontrack_routines.json"},
+    )
+
+
+@main.route("/export/goals.json")
+def export_goals():
+    return Response(
+        json.dumps(load_data()["goals"], indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=irontrack_goals.json"},
+    )
+
+
+@main.route("/import/routines", methods=["POST"])
+def import_routines():
+    data = load_data()
+    uploaded_file = request.files.get("routines_file")
+    if uploaded_file is None or not uploaded_file.filename:
+        flash("Select a routines JSON file to import.", "error")
+        return redirect(url_for("main.index", tab="routines"))
+    try:
+        imported = json.load(uploaded_file)
+        if not isinstance(imported, list) or len(imported) > 500:
+            raise ValueError("Invalid routines file.")
+        routines = []
+        for item in imported:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid routine.")
+            name = str(item.get("name", "")).strip()[:100]
+            exercises = _validated_routine_exercises(item.get("exercises"), data["exercises"])
+            if not name or not exercises:
+                raise ValueError("Each routine must have a name and at least one valid exercise.")
+            routines.append({"id": str(uuid.uuid4()), "name": name, "exercises": exercises})
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError, OverflowError):
+        flash("The routines file is invalid or contains exercises not in your library.", "error")
+        return redirect(url_for("main.index", tab="routines"))
+
+    data["routines"] = routines
+    save_data(data)
+    flash(f"Imported {len(routines)} routine(s), replacing the current routines.", "success")
+    return redirect(url_for("main.index", tab="routines"))
+
+
+@main.route("/import/goals", methods=["POST"])
+def import_goals():
+    data = load_data()
+    uploaded_file = request.files.get("goals_file")
+    if uploaded_file is None or not uploaded_file.filename:
+        flash("Select a goals JSON file to import.", "error")
+        return redirect(url_for("main.index", tab="measurements"))
+    try:
+        imported = json.load(uploaded_file)
+        if not isinstance(imported, list) or len(imported) > 500:
+            raise ValueError("Invalid goals file.")
+        goals = []
+        for item in imported:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid goal.")
+            metric = item.get("metric")
+            unit = item.get("unit")
+            direction = item.get("direction")
+            target = float(item.get("target"))
+            target_date = str(item.get("target_date", "")).strip()
+            if (
+                metric not in {"body_weight", "waist", "chest", "hips"}
+                or (metric == "body_weight" and unit not in {"kg", "lb"})
+                or (metric != "body_weight" and unit != "cm")
+                or direction not in {"increase", "decrease"}
+                or (metric != "body_weight" and direction == "increase")
+                or not math.isfinite(target)
+                or target <= 0
+            ):
+                raise ValueError("Invalid goal fields.")
+            if target_date:
+                datetime.date.fromisoformat(target_date)
+            goal = {
+                "id": str(uuid.uuid4()),
+                "metric": metric,
+                "target": str(target),
+                "unit": unit,
+                "direction": direction,
+                "target_date": target_date,
+            }
+            if item.get("baseline") not in (None, ""):
+                baseline = float(item["baseline"])
+                if not math.isfinite(baseline) or baseline <= 0:
+                    raise ValueError("Invalid goal baseline.")
+                goal["baseline"] = str(baseline)
+                goal["baseline_unit"] = item.get("baseline_unit", "")
+            goals.append(goal)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError, OverflowError):
+        flash("The goals file is invalid.", "error")
+        return redirect(url_for("main.index", tab="measurements"))
+
+    data["goals"] = goals
+    save_data(data)
+    flash(f"Imported {len(goals)} goal(s), replacing the current goals.", "success")
+    return redirect(url_for("main.index", tab="measurements"))
 
 
 @main.route("/import", methods=["POST"])

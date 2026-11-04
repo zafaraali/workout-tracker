@@ -11,7 +11,9 @@ function updateExercises() {
         option.textContent = exercise;
         exerciseSelect.appendChild(option);
     });
+    applyRestPresetForCurrentSelection();
     showExerciseHistory();
+    renderQuickExercises();
 }
 
 function filterExerciseLibrary() {
@@ -47,14 +49,42 @@ function switchTab(tab) {
     ["log", "library", "history", "progress", "routines", "measurements"].forEach((name) => {
         document.getElementById(`section-${name}`).classList.toggle("hidden", name !== tab);
         const button = document.getElementById(`tab-${name}`);
+        const selected = name === tab;
         button.classList.toggle("bg-emerald-600", name === tab);
         button.classList.toggle("text-white", name === tab);
         button.classList.toggle("text-slate-400", name !== tab);
-        if (name === tab) {
+        button.setAttribute("aria-selected", String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        if (selected) {
             button.setAttribute("aria-current", "page");
         } else {
             button.removeAttribute("aria-current");
         }
+    });
+}
+
+function initializeAccessibleNavigation() {
+    const navigation = document.querySelector(".app-nav");
+    if (!navigation) return;
+    navigation.addEventListener("keydown", (event) => {
+        const tabs = [...navigation.querySelectorAll('[role="tab"]')];
+        const currentIndex = tabs.indexOf(event.target);
+        if (currentIndex < 0) return;
+        let nextIndex = null;
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+            nextIndex = (currentIndex + 1) % tabs.length;
+        } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+            nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        } else if (event.key === "Home") {
+            nextIndex = 0;
+        } else if (event.key === "End") {
+            nextIndex = tabs.length - 1;
+        }
+        if (nextIndex === null) return;
+        event.preventDefault();
+        const tab = tabs[nextIndex];
+        tab.focus();
+        switchTab(tab.id.replace(/^tab-/, ""));
     });
 }
 
@@ -71,17 +101,48 @@ function initializeWorkoutSession() {
     nameField.value = sessionStorage.getItem("irontrack-session-name") || nameField.value || "Workout";
     document.getElementById("routine-session-id").value = idField.value;
     document.getElementById("routine-session-name").value = nameField.value;
+    const startKey = `irontrack-session-start-${idField.value}`;
+    if (!sessionStorage.getItem(startKey) && (window.activeSessionStarted || Number(document.getElementById("session-duration").dataset.elapsed))) {
+        const savedDuration = Number(document.getElementById("session-duration").dataset.elapsed || 0);
+        sessionStorage.setItem(startKey, String(Date.now() - savedDuration * 1000));
+    }
+    if (window.activeSessionFinished) {
+        document.getElementById("session-duration").textContent =
+            `Duration: ${formatElapsed(Number(document.getElementById("session-duration").dataset.elapsed || 0))} · Finished`;
+        document.getElementById("start-workout").classList.add("hidden");
+    } else {
+        updateSessionDuration();
+        document.getElementById("start-workout").classList.toggle("hidden", Boolean(sessionStorage.getItem(startKey)));
+        window.sessionDurationInterval = window.setInterval(updateSessionDuration, 1000);
+    }
+    document.querySelector('#section-log form[action*="/log"]').addEventListener("submit", updateElapsedField);
+    const finishForm = document.getElementById("finish-session-form");
+    if (finishForm) {
+        finishForm.addEventListener("submit", (event) => {
+            updateElapsedField(event);
+            sessionStorage.removeItem("irontrack-routine-queue");
+            sessionStorage.removeItem("irontrack-routine-index");
+            sessionStorage.removeItem(`irontrack-session-start-${idField.value}`);
+            sessionStorage.removeItem("irontrack-session-id");
+            sessionStorage.removeItem("irontrack-session-name");
+        });
+    }
 
     nameField.addEventListener("input", () => {
         sessionStorage.setItem("irontrack-session-name", nameField.value);
         document.getElementById("routine-session-name").value = nameField.value;
     });
     document.getElementById("workout-date").addEventListener("change", () => {
+        sessionStorage.removeItem("irontrack-routine-queue");
+        sessionStorage.removeItem("irontrack-routine-index");
+        document.getElementById("routine-target").classList.add("hidden");
+        document.getElementById("next-routine-exercise").classList.add("hidden");
         sessionStorage.removeItem("irontrack-session-id");
         sessionStorage.setItem("irontrack-session-date", document.getElementById("workout-date").value);
         sessionStorage.setItem("irontrack-session-name", "Workout");
         nameField.value = "Workout";
         idField.value = createSessionId();
+        resetWorkoutClock();
         document.getElementById("routine-session-id").value = idField.value;
         document.getElementById("routine-session-name").value = nameField.value;
     });
@@ -96,8 +157,69 @@ function createSessionId() {
     return id;
 }
 
+function startWorkoutClock() {
+    const sessionId = document.getElementById("session-id").value;
+    sessionStorage.setItem(`irontrack-session-start-${sessionId}`, String(Date.now()));
+    document.getElementById("start-workout").classList.add("hidden");
+    updateSessionDuration();
+}
+
+function resetWorkoutClock() {
+    const sessionId = document.getElementById("session-id").value;
+    sessionStorage.removeItem(`irontrack-session-start-${sessionId}`);
+    const durationElement = document.getElementById("session-duration");
+    durationElement.dataset.elapsed = "0";
+    document.getElementById("start-workout").classList.remove("hidden");
+    updateSessionDuration();
+}
+
+function updateElapsedField(event) {
+    const sessionId = document.getElementById("session-id").value;
+    const startKey = `irontrack-session-start-${sessionId}`;
+    if (!sessionStorage.getItem(startKey)) {
+        sessionStorage.setItem(startKey, String(Date.now()));
+    }
+    document.getElementById("start-workout").classList.add("hidden");
+    const start = Number(sessionStorage.getItem(startKey));
+    const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    const field = event.currentTarget.querySelector('[name="elapsed_seconds"]');
+    if (field) field.value = String(elapsed);
+}
+
+function updateSessionDuration() {
+    const durationElement = document.getElementById("session-duration");
+    if (!durationElement) return;
+    const sessionId = document.getElementById("session-id").value;
+    const start = Number(sessionStorage.getItem(`irontrack-session-start-${sessionId}`));
+    const saved = Number(durationElement.dataset.elapsed || 0);
+    if (!start) {
+        durationElement.textContent = `Duration: ${formatElapsed(saved)} · Not started`;
+        const field = document.getElementById("elapsed-seconds");
+        if (field) field.value = String(saved);
+        return;
+    }
+    const elapsed = Math.max(saved, Math.floor((Date.now() - start) / 1000));
+    durationElement.textContent = `Duration: ${formatElapsed(elapsed)}`;
+    const field = document.getElementById("elapsed-seconds");
+    if (field) field.value = String(elapsed);
+}
+
+function formatElapsed(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    return hours
+        ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
+        : `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
 function startNewWorkoutSession() {
+    sessionStorage.removeItem("irontrack-routine-queue");
+    sessionStorage.removeItem("irontrack-routine-index");
+    document.getElementById("routine-target").classList.add("hidden");
+    document.getElementById("next-routine-exercise").classList.add("hidden");
     document.getElementById("session-id").value = createSessionId();
+    resetWorkoutClock();
     const nameField = document.getElementById("session-name");
     nameField.value = "Workout";
     sessionStorage.setItem("irontrack-session-name", nameField.value);
@@ -151,6 +273,14 @@ function renderProgressChart() {
     const range = document.getElementById("progress-range").value;
     const emptyMessage = document.getElementById("progress-empty");
     const summary = document.getElementById("progress-summary");
+    const metricLabel = {
+        weight: "Best weight (kg)",
+        reps: "Best reps",
+        volume: "Volume (kg x reps)",
+        "cardio-distance": "Distance (km)",
+        "cardio-duration": "Duration (minutes)",
+    }[metric];
+    chart.setAttribute("aria-label", `${exercise} ${metricLabel} progress chart`);
     renderPersonalRecords(exercise);
     const svgNamespace = "http://www.w3.org/2000/svg";
     const cardioMetric = metric.startsWith("cardio-");
@@ -207,6 +337,7 @@ function renderProgressChart() {
     if (!points.length) {
         emptyMessage.classList.remove("hidden");
         summary.textContent = "";
+        document.getElementById("progress-chart-data").replaceChildren();
         return;
     }
     emptyMessage.classList.add("hidden");
@@ -262,15 +393,15 @@ function renderProgressChart() {
         chart.appendChild(label);
     });
 
-    const metricLabel = {
-        weight: "Best weight (kg)",
-        reps: "Best reps",
-        volume: "Volume (kg x reps)",
-        "cardio-distance": "Distance (km)",
-        "cardio-duration": "Duration (minutes)",
-    }[metric];
     const latest = points[points.length - 1].value;
     summary.textContent = `${points.length} workout date${points.length === 1 ? "" : "s"} · ${metricLabel} · Latest: ${Number(latest.toFixed(1))}`;
+    const dataList = document.getElementById("progress-chart-data");
+    dataList.replaceChildren();
+    points.forEach((point) => {
+        const item = document.createElement("li");
+        item.textContent = `${point.date}: ${Number(point.value.toFixed(1))} ${metricLabel}`;
+        dataList.append(item);
+    });
 }
 
 function renderPersonalRecords(exercise) {
@@ -316,6 +447,84 @@ function renderPersonalRecords(exercise) {
     ].filter(Boolean);
     document.getElementById("progress-records").textContent =
         records.join(" · ") || "No personal records for this exercise yet.";
+
+    const history = document.getElementById("personal-record-history");
+    const empty = document.getElementById("personal-record-empty");
+    if (!history || !empty) return;
+    const milestones = getPersonalRecordMilestones(exercise);
+    history.replaceChildren();
+    empty.classList.toggle("hidden", milestones.length > 0);
+    milestones.slice(-12).reverse().forEach((milestone) => {
+        const item = document.createElement("li");
+        item.className = "flex flex-wrap justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2";
+        const label = document.createElement("span");
+        label.textContent = milestone.label;
+        const value = document.createElement("span");
+        value.className = "font-medium text-emerald-400";
+        value.textContent = milestone.value;
+        item.append(label, value);
+        const date = document.createElement("time");
+        date.className = "w-full text-xs text-slate-500";
+        date.dateTime = milestone.date;
+        date.textContent = milestone.date;
+        item.append(date);
+        history.append(item);
+    });
+}
+
+function getPersonalRecordMilestones(exercise) {
+    const sessions = new Map();
+    (window.progressData || []).forEach((entry, index) => {
+        if (entry.exercise !== exercise) return;
+        const key = entry.session_id || entry.date;
+        const session = sessions.get(key) || {date: entry.date, strength: [], cardio: []};
+        if (entry.set_type === "cardio") session.cardio.push(entry);
+        else session.strength.push(entry);
+        session.index = index;
+        sessions.set(key, session);
+    });
+
+    const ordered = [...sessions.values()].sort(
+        (a, b) => a.date.localeCompare(b.date) || a.index - b.index
+    );
+    const records = new Map();
+    const milestones = [];
+    const consider = (metric, label, value, date, format) => {
+        if (!Number.isFinite(value) || value <= 0 || value <= (records.get(metric) || 0)) return;
+        records.set(metric, value);
+        milestones.push({label, value: format(value), date});
+    };
+    ordered.forEach((session) => {
+        session.strength.forEach((entry) => {
+            const weight = Number(entry.weight) * (entry.unit === "lb" ? 0.45359237 : 1);
+            const reps = Number(entry.reps);
+            consider("weight", "Best weight", weight, session.date, (value) => `${value.toFixed(1)} kg`);
+            consider("reps", "Best reps", reps, session.date, (value) => `${Math.round(value)} reps`);
+        });
+        if (session.strength.length) {
+            const volume = session.strength.reduce((total, entry) => {
+                const weight = Number(entry.weight) * (entry.unit === "lb" ? 0.45359237 : 1);
+                const reps = Number(entry.reps);
+                return Number.isFinite(weight) && Number.isFinite(reps) ? total + weight * reps : total;
+            }, 0);
+            consider("volume", "Best session volume", volume, session.date, (value) => `${value.toFixed(1)} kg × reps`);
+        }
+        if (session.cardio.length) {
+            const distance = session.cardio.reduce((total, entry) => {
+                const value = Number(entry.distance || 0);
+                return Number.isFinite(value)
+                    ? total + value * (entry.distance_unit === "mi" ? 1.609344 : 1)
+                    : total;
+            }, 0);
+            const duration = session.cardio.reduce((total, entry) => {
+                const value = Number(entry.duration || 0);
+                return Number.isFinite(value) ? total + value : total;
+            }, 0);
+            consider("cardio-distance", "Best cardio distance", distance, session.date, (value) => `${value.toFixed(2)} km`);
+            consider("cardio-duration", "Best cardio duration", duration, session.date, (value) => `${Math.round(value)} min`);
+        }
+    });
+    return milestones;
 }
 
 function toggleCardioFields() {
@@ -326,6 +535,7 @@ function toggleCardioFields() {
         document.getElementById(id).required = !cardio;
     });
     document.getElementById("weight-unit").disabled = cardio;
+    applyRestPresetForCurrentSelection();
 }
 
 function showExerciseHistory() {
@@ -337,10 +547,13 @@ function showExerciseHistory() {
     }
 
     const records = (window.progressData || [])
-        .filter((entry) => entry.exercise === exerciseSelect.value && entry.set_type !== "cardio")
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .map((entry, index) => ({entry, index}))
+        .filter(({entry}) => entry.exercise === exerciseSelect.value && entry.set_type !== "cardio")
+        .sort((a, b) => b.entry.date.localeCompare(a.entry.date) || b.index - a.index)
+        .map(({entry}) => entry);
     list.replaceChildren();
     window.previousExerciseSet = records[0] || null;
+    updateProgressionSuggestion(records);
     if (!records.length) {
         summary.textContent = "No previous strength sets for this exercise.";
         return;
@@ -360,11 +573,128 @@ function showExerciseHistory() {
     });
 }
 
-function copyPreviousSet() {
-    const previous = window.previousExerciseSet;
-    if (!previous) {
+function updateProgressionSuggestion(records) {
+    const summary = document.getElementById("progression-summary");
+    const weightGoalInput = document.getElementById("progression-weight-goal");
+    if (!summary || !weightGoalInput) return;
+    const strength = records.filter((entry) => entry.set_type !== "cardio");
+    if (!strength.length) {
+        summary.textContent = "Log strength sets to get a suggested next target.";
+        window.progressionTarget = null;
         return;
     }
+    const latest = strength[0];
+    const latestSession = latest.session_id || latest.date;
+    const latestSets = strength.filter((entry) => (entry.session_id || entry.date) === latestSession);
+    const unit = latestSets[0].unit || "kg";
+    const convertedSets = latestSets.map((entry) => ({
+        ...entry,
+        weightInUnit: Number(entry.weight) * (
+            (entry.unit || "kg") === unit ? 1
+                : unit === "kg" ? 0.45359237 : 1 / 0.45359237
+        ),
+    }));
+    const bestSet = convertedSets.reduce((best, entry) =>
+        entry.weightInUnit > best.weightInUnit ? entry : best, convertedSets[0]);
+    const repGoal = Number(document.getElementById("progression-rep-goal").value) || 12;
+    const achieved = convertedSets.length > 0
+        && convertedSets.every((entry) => Number(entry.reps) >= repGoal && Number(entry.rpe || 10) <= 8);
+    const increment = unit === "lb" ? 5 : 2.5;
+    let targetWeight = Number(bestSet.weightInUnit);
+    let targetReps = Math.min(repGoal, Number(bestSet.reps) + 1);
+    if (achieved) {
+        targetWeight += increment;
+        targetReps = Math.max(1, Math.min(repGoal, Number(bestSet.reps)));
+    }
+    const userWeightGoal = Number(weightGoalInput.value);
+    if (userWeightGoal > 0) {
+        targetWeight = Math.min(targetWeight, Math.max(Number(bestSet.weightInUnit), userWeightGoal));
+        if (userWeightGoal <= Number(bestSet.weightInUnit)) {
+            targetReps = Math.min(repGoal, Number(bestSet.reps) + 1);
+        }
+    }
+    window.progressionTarget = {weight: targetWeight, reps: targetReps, unit};
+    summary.textContent = `${achieved ? "You met your rep goal at a controlled effort." : "Build reps at your recent load."} Suggested next target: ${targetWeight} ${unit} × ${targetReps} reps.`;
+}
+
+function applyProgressionSuggestion() {
+    const target = window.progressionTarget;
+    if (!target) return;
+    document.getElementById("set-type").value = "working";
+    toggleCardioFields();
+    document.getElementById("weight-unit").value = target.unit;
+    document.getElementById("set-weight").value = String(target.weight);
+    document.getElementById("set-reps").value = String(target.reps);
+}
+
+function updateGoalMetricUnit() {
+    const metric = document.getElementById("goal-metric").value;
+    const unit = document.getElementById("goal-unit");
+    const direction = document.getElementById("goal-direction");
+    const isWeight = metric === "body_weight";
+    unit.replaceChildren(
+        new Option(isWeight ? "kg" : "cm", isWeight ? "kg" : "cm"),
+        ...(isWeight ? [new Option("lb", "lb")] : [])
+    );
+    direction.querySelector('[value="increase"]').disabled = !isWeight;
+    if (!isWeight) direction.value = "decrease";
+}
+
+function initializeSessionStructure() {
+    const container = document.getElementById("active-session-exercises");
+    const form = document.getElementById("session-structure-form");
+    if (!container || !form) return;
+    container.querySelectorAll(".move-exercise-up").forEach((button) => {
+        button.addEventListener("click", () => {
+            const group = button.closest(".active-exercise-group");
+            if (group.previousElementSibling) container.insertBefore(group, group.previousElementSibling);
+        });
+    });
+    container.querySelectorAll(".move-exercise-down").forEach((button) => {
+        button.addEventListener("click", () => {
+            const group = button.closest(".active-exercise-group");
+            if (group.nextElementSibling) container.insertBefore(group.nextElementSibling, group);
+        });
+    });
+    form.addEventListener("submit", (event) => {
+        const groups = [...container.querySelectorAll(".active-exercise-group")];
+        form.querySelector('[name="exercise_order"]').value = JSON.stringify(
+            groups.map((group) => group.dataset.exercise)
+        );
+        form.querySelector('[name="superset_groups"]').value = JSON.stringify(
+            Object.fromEntries(groups.map((group) => [
+                group.dataset.exercise,
+                group.querySelector(".exercise-superset").value,
+            ]))
+        );
+        if (!groups.length) event.preventDefault();
+    });
+}
+
+function copyPreviousSet() {
+    const previous = window.previousExerciseSet;
+    if (previous) copyWorkoutEntry(previous);
+}
+
+function copyWorkoutSet(index) {
+    const entry = (window.progressData || [])[index];
+    if (!entry) return;
+    const category = Object.keys(window.exercisesData || {}).find(
+        (name) => window.exercisesData[name].includes(entry.exercise)
+    );
+    if (!category) {
+        window.alert("This exercise is no longer in the library. Restore or add it before copying this set.");
+        return;
+    }
+    document.getElementById("muscle-select").value = category;
+    updateExercises();
+    document.getElementById("exercise-select").value = entry.exercise;
+    copyWorkoutEntry(entry);
+    switchTab("log");
+    document.getElementById("set-weight").focus();
+}
+
+function copyWorkoutEntry(previous) {
     document.getElementById("set-type").value = previous.set_type || "working";
     toggleCardioFields();
     if (previous.set_type === "cardio") {
@@ -378,6 +708,84 @@ function copyPreviousSet() {
         document.getElementById("weight-unit").value = previous.unit || "kg";
     }
     document.querySelector('#section-log textarea[name="notes"]').value = previous.notes || "";
+    applyRestPresetForCurrentSelection();
+}
+
+function favoriteExercises() {
+    try {
+        const value = JSON.parse(localStorage.getItem("irontrack-favorite-exercises") || "[]");
+        return Array.isArray(value) ? value : [];
+    } catch (error) {
+        console.error("Could not read favorite exercises.", error);
+        return [];
+    }
+}
+
+function exerciseKey(muscle, exercise) {
+    return `${muscle}\u0000${exercise}`;
+}
+
+function toggleFavoriteExercise() {
+    const key = exerciseKey(
+        document.getElementById("muscle-select").value,
+        document.getElementById("exercise-select").value
+    );
+    const favorites = favoriteExercises();
+    const updated = favorites.includes(key)
+        ? favorites.filter((item) => item !== key)
+        : [...favorites, key];
+    localStorage.setItem("irontrack-favorite-exercises", JSON.stringify(updated));
+    renderQuickExercises();
+}
+
+function selectQuickExercise(muscle, exercise) {
+    document.getElementById("muscle-select").value = muscle;
+    updateExercises();
+    document.getElementById("exercise-select").value = exercise;
+    showExerciseHistory();
+}
+
+function renderQuickExercises() {
+    const container = document.getElementById("quick-exercises");
+    if (!container) return;
+    const favorites = favoriteExercises();
+    const entries = [];
+    const seen = new Set();
+    const append = (muscle, exercise, isFavorite) => {
+        const key = exerciseKey(muscle, exercise);
+        if (seen.has(key) || !(window.exercisesData[muscle] || []).includes(exercise)) return;
+        seen.add(key);
+        entries.push({muscle, exercise, isFavorite});
+    };
+    favorites.forEach((key) => {
+        const [muscle, exercise] = key.split("\u0000");
+        if (muscle && exercise) append(muscle, exercise, true);
+    });
+    [...(window.progressData || [])].reverse().forEach((entry) => {
+        const muscle = entry.muscle || Object.keys(window.exercisesData || {}).find(
+            (category) => (window.exercisesData[category] || []).includes(entry.exercise)
+        );
+        if (muscle) append(muscle, entry.exercise, false);
+    });
+    const selectedMuscle = document.getElementById("muscle-select").value;
+    (window.exercisesData[selectedMuscle] || []).forEach((exercise) => append(selectedMuscle, exercise, false));
+    container.replaceChildren();
+    entries.slice(0, 8).forEach(({muscle, exercise, isFavorite}) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "quick-exercise-chip";
+        button.textContent = `${isFavorite ? "★ " : ""}${exercise}`;
+        button.title = `${muscle}: ${exercise}`;
+        button.addEventListener("click", () => selectQuickExercise(muscle, exercise));
+        container.append(button);
+    });
+    const currentKey = exerciseKey(
+        document.getElementById("muscle-select").value,
+        document.getElementById("exercise-select").value
+    );
+    const isFavorite = favorites.includes(currentKey);
+    const toggle = document.getElementById("favorite-exercise-toggle");
+    toggle.textContent = isFavorite ? "★ Remove favorite" : "☆ Favorite this exercise";
 }
 
 function loadRoutine(routineId) {
@@ -389,6 +797,8 @@ function loadRoutine(routineId) {
     sessionStorage.setItem("irontrack-routine-index", "0");
     const sessionId = createSessionId();
     document.getElementById("session-id").value = sessionId;
+    resetWorkoutClock();
+    startWorkoutClock();
     document.getElementById("routine-session-id").value = sessionId;
     document.getElementById("session-name").value = routine.name;
     sessionStorage.setItem("irontrack-session-name", routine.name);
@@ -397,14 +807,134 @@ function loadRoutine(routineId) {
     selectRoutineExercise(routine.exercises[0]);
     applyRoutineTarget(routine.exercises[0]);
     document.getElementById("next-routine-exercise").classList.toggle("hidden", routine.exercises.length < 2);
+    refreshRoutineProgress();
+}
+
+function initializeActiveRoutine() {
+    let queue;
+    try {
+        queue = JSON.parse(sessionStorage.getItem("irontrack-routine-queue") || "[]");
+    } catch (error) {
+        console.error("Could not read the active routine.", error);
+        sessionStorage.removeItem("irontrack-routine-queue");
+        return;
+    }
+    const index = Number(sessionStorage.getItem("irontrack-routine-index") || "0");
+    if (!Array.isArray(queue) || !queue.length || !queue[index]) return;
+    if (!selectRoutineExercise(queue[index])) {
+        sessionStorage.removeItem("irontrack-routine-queue");
+        return;
+    }
+    applyRoutineTarget(queue[index]);
+    document.getElementById("next-routine-exercise").classList.toggle("hidden", index >= queue.length - 1);
+    refreshRoutineProgress();
+}
+
+function refreshRoutineProgress() {
+    let queue;
+    try {
+        queue = JSON.parse(sessionStorage.getItem("irontrack-routine-queue") || "[]");
+    } catch (error) {
+        console.error("Could not update active routine progress.", error);
+        return;
+    }
+    const index = Number(sessionStorage.getItem("irontrack-routine-index") || "0");
+    const item = queue[index];
+    const notice = document.getElementById("routine-target");
+    if (!item || !notice) return;
+    const sessionId = document.getElementById("session-id").value;
+    const exerciseSets = (window.progressData || []).filter(
+        (entry) => entry.session_id === sessionId
+            && entry.exercise === item.exercise
+            && entry.set_type !== "cardio"
+    );
+    const warmupCount = Number(item.warmup_sets || 0);
+    const workingTarget = Number(item.target_sets || 3);
+    const completedWarmups = exerciseSets.filter((entry) => entry.set_type === "warmup").length;
+    const completedWorking = exerciseSets.filter((entry) => entry.set_type !== "warmup").length;
+    const target = warmupCount + workingTarget;
+    updateRoutineChecklist(item, sessionId, completedWarmups, completedWorking);
+    notice.textContent =
+        `Routine exercise ${index + 1} of ${queue.length}: ${item.exercise} · ${Math.min(completedWarmups, warmupCount)}/${warmupCount} warm-up · ${Math.min(completedWorking, workingTarget)}/${workingTarget} working sets logged`
+        + `${completedWarmups >= warmupCount && completedWorking >= workingTarget ? " · Target met" : ""}`;
+    notice.classList.remove("hidden");
+}
+
+function updateRoutineChecklist(item, sessionId, completedWarmups, completedWorking) {
+    const list = document.getElementById("routine-set-checklist");
+    const summary = document.getElementById("routine-checklist-summary");
+    if (!list || !summary) return;
+    list.replaceChildren();
+    const warmupTarget = Number(item.warmup_sets || 0);
+    const workingTarget = Number(item.target_sets || 3);
+    if (warmupTarget + workingTarget === 0) {
+        list.classList.add("hidden");
+        summary.classList.add("hidden");
+        return;
+    }
+    let manualChecks = {};
+    const storageKey = `irontrack-routine-checks-${sessionId}`;
+    try {
+        const savedChecks = JSON.parse(sessionStorage.getItem(storageKey) || "{}");
+        if (savedChecks && typeof savedChecks === "object" && !Array.isArray(savedChecks)) {
+            manualChecks = savedChecks;
+        }
+    } catch (error) {
+        console.error("Could not read routine set checkmarks.", error);
+    }
+    const exerciseId = `${item.muscle}\u0000${item.exercise}`;
+    let checkedCount = 0;
+    const addPhase = (phase, count, actualCount) => {
+        for (let setNumber = 0; setNumber < count; setNumber += 1) {
+            const key = `${exerciseId}\u0000${phase}\u0000${setNumber}`;
+            const logged = setNumber < actualCount;
+            const label = document.createElement("label");
+            label.className = "routine-check-item";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = logged || Boolean(manualChecks[key]);
+            checkbox.disabled = logged;
+            checkbox.setAttribute("aria-label", `${phase === "warmup" ? "Warm-up" : "Working"} set ${setNumber + 1} of ${count}`);
+            if (checkbox.checked) checkedCount += 1;
+            checkbox.addEventListener("change", () => {
+                manualChecks[key] = checkbox.checked;
+                sessionStorage.setItem(storageKey, JSON.stringify(manualChecks));
+                refreshRoutineProgress();
+            });
+            const text = document.createElement("span");
+            text.textContent = `${phase === "warmup" ? "Warm-up" : "Working"} set ${setNumber + 1}${logged ? " · logged" : ""}`;
+            label.append(checkbox, text);
+            list.append(label);
+        }
+    };
+    addPhase("warmup", warmupTarget, completedWarmups);
+    addPhase("working", workingTarget, completedWorking);
+    list.classList.remove("hidden");
+    summary.textContent = `${checkedCount} of ${warmupTarget + workingTarget} planned sets checked off. Logged sets are checked automatically.`;
+    summary.classList.remove("hidden");
 }
 
 function applyRoutineTarget(item) {
+    const sessionId = document.getElementById("session-id").value;
+    const loggedSets = (window.progressData || []).filter(
+        (entry) => entry.session_id === sessionId
+            && entry.exercise === item.exercise
+            && entry.set_type !== "cardio"
+    );
+    const warmupsDone = loggedSets.filter((entry) => entry.set_type === "warmup").length;
+    const workingDone = loggedSets.filter((entry) => entry.set_type !== "warmup").length;
+    const warmupTarget = Number(item.warmup_sets || 0);
+    const isWarmup = warmupsDone < warmupTarget;
     const reps = Number.parseInt(String(item.target_reps || "10").match(/\d+/)?.[0] || "10", 10);
-    document.getElementById("set-type").value = "working";
+    document.getElementById("set-type").value = isWarmup ? "warmup" : "working";
     toggleCardioFields();
     document.getElementById("set-reps").value = String(reps);
-    document.getElementById("set-weight").value = item.target_weight || "0";
+    const baseWeight = Number(item.target_weight || 0);
+    const perSetIncrement = Number(item.weight_increment || 0);
+    const nextWeight = isWarmup
+        ? Number(item.warmup_weight || 0)
+        : baseWeight + Math.max(0, workingDone) * perSetIncrement;
+    document.getElementById("set-weight").value = String(nextWeight);
     const timerDuration = document.getElementById("timer-duration");
     const restSeconds = String(item.rest_seconds ?? 90);
     if (![...timerDuration.options].some((option) => option.value === restSeconds)) {
@@ -412,9 +942,13 @@ function applyRoutineTarget(item) {
     }
     timerDuration.value = restSeconds;
     const notice = document.getElementById("routine-target");
+    const phaseText = isWarmup
+        ? `Warm-up ${warmupsDone + 1}/${warmupTarget}`
+        : `Working set ${workingDone + 1}/${item.target_sets || 3}`
+            + (perSetIncrement > 0 ? ` · +${perSetIncrement} ${document.getElementById("weight-unit").value}/set` : "");
     notice.textContent =
-        `Routine target: ${item.target_sets || 3} sets x ${item.target_reps || "8-12"}`
-        + `${item.target_weight ? ` at ${item.target_weight} ${document.getElementById("weight-unit").value}` : ""}`
+        `${phaseText} · ${item.target_reps || "8-12"} reps`
+        + `${nextWeight ? ` at ${nextWeight} ${document.getElementById("weight-unit").value}` : ""}`
         + ` · Rest ${item.rest_seconds ?? 90}s${item.notes ? ` · ${item.notes}` : ""}`;
     notice.classList.remove("hidden");
 }
@@ -444,6 +978,7 @@ function advanceRoutine() {
         sessionStorage.setItem("irontrack-routine-index", String(nextIndex));
         applyRoutineTarget(queue[nextIndex]);
         document.getElementById("next-routine-exercise").classList.toggle("hidden", nextIndex >= queue.length - 1);
+        refreshRoutineProgress();
     }
 }
 
@@ -460,9 +995,12 @@ function initializeRoutineEditors() {
             const exercises = [...form.querySelectorAll(".routine-exercise-row")].map((row) => ({
                 muscle: row.querySelector('[name="routine-muscle"]').value,
                 exercise: row.querySelector('[name="routine-exercise"]').value,
+                warmup_sets: row.querySelector('[name="warmup_sets"]').value,
+                warmup_weight: row.querySelector('[name="warmup_weight"]').value,
                 target_sets: row.querySelector('[name="target_sets"]').value,
                 target_reps: row.querySelector('[name="target_reps"]').value,
                 target_weight: row.querySelector('[name="target_weight"]').value,
+                weight_increment: row.querySelector('[name="weight_increment"]').value,
                 rest_seconds: row.querySelector('[name="rest_seconds"]').value,
                 notes: row.querySelector('[name="routine-notes"]').value,
             }));
@@ -482,6 +1020,7 @@ function addRoutineExercise(form, initial = {}) {
     const category = document.createElement("select");
     category.name = "routine-muscle";
     category.className = "form-control";
+    category.setAttribute("aria-label", "Routine muscle group");
     Object.keys(window.exercisesData || {}).forEach((name) => {
         const option = new Option(name, name);
         category.add(option);
@@ -489,6 +1028,7 @@ function addRoutineExercise(form, initial = {}) {
     const exercise = document.createElement("select");
     exercise.name = "routine-exercise";
     exercise.className = "form-control";
+    exercise.setAttribute("aria-label", "Routine exercise");
     const refreshExercises = () => {
         const previous = exercise.value;
         exercise.replaceChildren();
@@ -507,9 +1047,12 @@ function addRoutineExercise(form, initial = {}) {
     }
     row.append(category, exercise);
     [
+        ["Warm-up sets", "warmup_sets", initial.warmup_sets ?? 0, "number", 0, 10],
+        ["Warm-up weight", "warmup_weight", initial.warmup_weight || "", "number", 0, ""],
         ["Sets", "target_sets", initial.target_sets || 3, "number", 1, 30],
         ["Target reps", "target_reps", initial.target_reps || "8-12", "text"],
         ["Target weight", "target_weight", initial.target_weight || "", "number", 0, ""],
+        ["Weight increase per working set", "weight_increment", initial.weight_increment || "0", "number", 0, ""],
         ["Rest seconds", "rest_seconds", initial.rest_seconds ?? 90, "number", 0, 3600],
         ["Notes", "routine-notes", initial.notes || "", "text"],
     ].forEach(([labelText, name, value, type, min, max]) => {
@@ -523,7 +1066,7 @@ function addRoutineExercise(form, initial = {}) {
         input.value = value;
         if (min !== undefined && min !== "") input.min = min;
         if (max !== undefined && max !== "") input.max = max;
-        if (name === "target_weight") input.step = "0.5";
+        if (["target_weight", "warmup_weight", "weight_increment"].includes(name)) input.step = "0.5";
         if (name === "target_reps") input.maxLength = 30;
         label.append(input);
         row.append(label);
@@ -575,6 +1118,13 @@ function renderMeasurementChart() {
     const chart = document.getElementById("measurement-chart");
     if (!chart) return;
     const metric = document.getElementById("measurement-metric").value;
+    const metricName = {
+        body_weight: "Body weight",
+        waist: "Waist",
+        chest: "Chest",
+        hips: "Hips",
+    }[metric];
+    chart.setAttribute("aria-label", `${metricName} measurement history chart`);
     const points = (window.measurementsData || [])
         .filter((entry) => entry[metric] !== "" && Number.isFinite(Number(entry[metric])))
         .map((entry) => ({
@@ -586,8 +1136,12 @@ function renderMeasurementChart() {
         .sort((a, b) => a.date.localeCompare(b.date));
     chart.replaceChildren();
     const empty = document.getElementById("measurement-chart-empty");
+    const summary = document.getElementById("measurement-chart-summary");
+    const dataList = document.getElementById("measurement-chart-data");
+    dataList.replaceChildren();
     if (!points.length) {
         empty.classList.remove("hidden");
+        summary.textContent = `No ${metric.replace("_", " ")} measurements have been recorded.`;
         return;
     }
     empty.classList.add("hidden");
@@ -617,7 +1171,14 @@ function renderMeasurementChart() {
         label.setAttribute("class", "chart-label");
         label.textContent = point.date.slice(5);
         chart.append(label);
+        const listItem = document.createElement("li");
+        const unit = metric === "body_weight" ? "kg" : "cm";
+        listItem.textContent = `${point.date}: ${point.value.toFixed(1)} ${unit}`;
+        dataList.append(listItem);
     });
+    const unit = metric === "body_weight" ? "kg" : "cm";
+    summary.textContent =
+        `${points.length} measurement${points.length === 1 ? "" : "s"} · Latest: ${points[points.length - 1].value.toFixed(1)} ${unit} on ${points[points.length - 1].date}`;
 }
 
 const OFFLINE_QUEUE_KEY = "irontrack-pending-workouts";
@@ -670,10 +1231,17 @@ function initializeOfflineSupport() {
                     redirect: "follow",
                 });
                 if (!response.ok) throw new Error(`Server returned ${response.status}.`);
+                if (document.getElementById("auto-start-rest").checked) {
+                    sessionStorage.setItem(
+                        "irontrack-pending-rest-timer",
+                        document.getElementById("timer-duration").value
+                    );
+                }
                 window.location.assign(response.url);
                 return;
             }
             queueOfflineWorkout(formData);
+            if (document.getElementById("auto-start-rest").checked) startTimer();
         } catch (error) {
             console.warn("Workout submission could not reach the server; it was queued locally.", error);
             try {
@@ -681,7 +1249,9 @@ function initializeOfflineSupport() {
             } catch (queueError) {
                 console.error("Workout could not be saved to the local queue.", queueError);
                 setOfflineStatus("Could not save this workout locally. Keep this page open and reconnect before retrying.");
+                return;
             }
+            if (document.getElementById("auto-start-rest").checked) startTimer();
         }
     });
 
@@ -763,6 +1333,89 @@ async function syncOfflineWorkouts() {
 function updateThemeLabel() {
     document.getElementById("theme-label").textContent =
         document.documentElement.classList.contains("dark") ? "☀️ Light mode" : "🌙 Dark mode";
+}
+
+function initializeRestPresets() {
+    const typePresets = readRestPresetMap("irontrack-rest-set-type");
+    const type = document.getElementById("set-type").value;
+    const select = document.getElementById("set-type-rest-preset");
+    if (typePresets[type]) {
+        ensureTimerOption(select, typePresets[type]);
+        select.value = String(typePresets[type]);
+    }
+    const autoStart = document.getElementById("auto-start-rest");
+    autoStart.checked = localStorage.getItem("irontrack-auto-start-rest") === "true";
+    autoStart.addEventListener("change", () => {
+        localStorage.setItem("irontrack-auto-start-rest", String(autoStart.checked));
+    });
+    document.getElementById("set-type-rest-preset").addEventListener("change", () => {
+        const timer = document.getElementById("timer-duration");
+        ensureTimerOption(timer, select.value);
+        timer.value = select.value;
+    });
+    const pending = sessionStorage.getItem("irontrack-pending-rest-timer");
+    if (pending) {
+        sessionStorage.removeItem("irontrack-pending-rest-timer");
+        ensureTimerOption(document.getElementById("timer-duration"), pending);
+        document.getElementById("timer-duration").value = pending;
+        startTimer();
+    }
+    applyRestPresetForCurrentSelection();
+}
+
+function readRestPresetMap(key) {
+    try {
+        const value = JSON.parse(localStorage.getItem(key) || "{}");
+        return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    } catch (error) {
+        console.error(`Could not read rest presets from ${key}.`, error);
+        return {};
+    }
+}
+
+function ensureTimerOption(select, value) {
+    if (![...select.options].some((option) => option.value === String(value))) {
+        select.add(new Option(`Custom (${value} seconds)`, String(value)));
+    }
+}
+
+function applyRestPresetForCurrentSelection() {
+    const timer = document.getElementById("timer-duration");
+    const setType = document.getElementById("set-type");
+    const muscle = document.getElementById("muscle-select");
+    const exercise = document.getElementById("exercise-select");
+    if (!timer || !setType || !muscle || !exercise) return;
+    const exercisePresets = readRestPresetMap("irontrack-rest-exercises");
+    const typePresets = readRestPresetMap("irontrack-rest-set-type");
+    const selected = exercisePresets[exerciseKey(muscle.value, exercise.value)]
+        || typePresets[setType.value];
+    if (selected === undefined) return;
+    ensureTimerOption(timer, selected);
+    timer.value = String(selected);
+}
+
+function saveRestPreset(scope) {
+    const duration = Number(document.getElementById("timer-duration").value);
+    if (!Number.isInteger(duration) || duration < 1 || duration > 3600) {
+        window.alert("Choose a rest duration between 1 and 3600 seconds.");
+        return;
+    }
+    const key = scope === "exercise" ? "irontrack-rest-exercises" : "irontrack-rest-set-type";
+    const presets = readRestPresetMap(key);
+    const presetKey = scope === "exercise"
+        ? exerciseKey(document.getElementById("muscle-select").value, document.getElementById("exercise-select").value)
+        : document.getElementById("set-type").value;
+    presets[presetKey] = duration;
+    localStorage.setItem(key, JSON.stringify(presets));
+    if (scope === "set-type") {
+        document.getElementById("set-type-rest-preset").value = String(duration);
+    }
+    document.getElementById("rest-preset-status").textContent =
+        `Saved ${duration}-second ${scope === "exercise" ? "exercise" : "set-type"} rest preset.`;
+}
+
+function scheduleAutomaticRestTimer() {
+    if (document.getElementById("auto-start-rest").checked) startTimer();
 }
 
 function setAccentColor(color) {

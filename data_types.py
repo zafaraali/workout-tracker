@@ -21,13 +21,17 @@ class WorkoutEntry(TypedDict):
     entry_id: NotRequired[str]
     elapsed_seconds: NotRequired[int]
     superset_group: NotRequired[str]
+    finished: NotRequired[bool]
 
 class RoutineExercise(TypedDict):
     muscle: str
     exercise: str
     target_sets: NotRequired[int]
+    warmup_sets: NotRequired[int]
+    warmup_weight: NotRequired[str]
     target_reps: NotRequired[str]
     target_weight: NotRequired[str]
+    weight_increment: NotRequired[str]
     rest_seconds: NotRequired[int]
     notes: NotRequired[str]
 

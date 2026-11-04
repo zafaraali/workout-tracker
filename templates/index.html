@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IronTrack Gym Logger</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#020617">
     <script>
@@ -25,11 +26,15 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
-    <header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-y-2">
-            <div class="flex items-center space-x-2">
-                <span class="text-2xl">🏋️‍♂️</span>
-                <h1 class="text-xl font-bold tracking-tight">IronTrack</h1>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="app-header sticky top-0 z-50">
+        <div class="app-header-inner max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-y-2">
+            <div class="brand-lockup flex items-center space-x-2">
+                <img src="{{ url_for('static', filename='icon.svg') }}" alt="" width="34" height="34">
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight">IronTrack</h1>
+                    <p class="brand-caption">Workout log</p>
+                </div>
             </div>
             <div class="flex items-center gap-3">
                 <button id="install-app" type="button" class="hidden px-3 py-1.5 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg">Install app</button>
@@ -52,7 +57,7 @@
         }
     </script>
 
-    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+    <main id="main-content" tabindex="-1" class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
         <aside id="offline-status" class="hidden rounded-xl border border-amber-700 bg-amber-950 p-3 text-sm text-amber-200" aria-live="polite">
             <span id="offline-status-text"></span>
             <button type="button" id="sync-offline-workouts" onclick="syncOfflineWorkouts()" class="ml-3 underline">Sync now</button>
@@ -67,20 +72,27 @@
             {% endif %}
         {% endwith %}
 
-        <nav class="app-nav" aria-label="Main navigation">
-            <button type="button" onclick="switchTab('log')" id="tab-log" aria-label="Log Workout" aria-current="page" class="tab-button"><span class="nav-icon" aria-hidden="true">✚</span><span class="nav-label">Log Workout</span></button>
-            <button type="button" onclick="switchTab('library')" id="tab-library" aria-label="Exercises" class="tab-button"><span class="nav-icon" aria-hidden="true">🏋</span><span class="nav-label">Exercises</span></button>
-            <button type="button" onclick="switchTab('history')" id="tab-history" aria-label="History" class="tab-button"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-label">History</span></button>
-            <button type="button" onclick="switchTab('progress')" id="tab-progress" aria-label="Progress" class="tab-button"><span class="nav-icon" aria-hidden="true">↗</span><span class="nav-label">Progress</span></button>
-            <button type="button" onclick="switchTab('routines')" id="tab-routines" aria-label="Routines" class="tab-button"><span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">Routines</span></button>
-            <button type="button" onclick="switchTab('measurements')" id="tab-measurements" aria-label="Body measurements" class="tab-button"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">Body</span></button>
+        <nav class="app-nav" aria-label="Main navigation" role="tablist">
+            <button type="button" onclick="switchTab('log')" id="tab-log" aria-label="Log Workout" aria-current="page" aria-selected="true" aria-controls="section-log" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Log Workout</span></button>
+            <button type="button" onclick="switchTab('library')" id="tab-library" aria-label="Exercises" aria-selected="false" aria-controls="section-library" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Exercises</span></button>
+            <button type="button" onclick="switchTab('history')" id="tab-history" aria-label="History" aria-selected="false" aria-controls="section-history" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">History</span></button>
+            <button type="button" onclick="switchTab('progress')" id="tab-progress" aria-label="Progress" aria-selected="false" aria-controls="section-progress" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">↗</span><span class="nav-label">Progress</span></button>
+            <button type="button" onclick="switchTab('routines')" id="tab-routines" aria-label="Routines" aria-selected="false" aria-controls="section-routines" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">Routines</span></button>
+            <button type="button" onclick="switchTab('measurements')" id="tab-measurements" aria-label="Body measurements" aria-selected="false" aria-controls="section-measurements" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">Body</span></button>
         </nav>
 
-        <section id="section-log" class="tab-panel space-y-6">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <h2 class="text-lg font-semibold mb-4 text-emerald-500">Record Exercise Set</h2>
+        <section id="section-log" role="tabpanel" aria-labelledby="tab-log" tabindex="0" class="tab-panel space-y-6">
+            <div class="workspace-card log-entry-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">TRAINING SESSION</p>
+                        <h2 class="text-lg font-semibold text-emerald-500">Log a set</h2>
+                    </div>
+                    <span class="entry-hint">Choose an exercise, enter the set, save.</span>
+                </div>
                 <form action="{{ url_for('main.log_workout') }}" method="POST" class="space-y-4">
                     <input type="hidden" name="entry_id" class="entry-id">
+                    <input type="hidden" name="elapsed_seconds" id="elapsed-seconds" value="0">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="field-label">
                             <label for="workout-date">Workout date</label>
@@ -110,11 +122,18 @@
                         </div>
                     </div>
                     <label class="field-label">Exercise
-                        <select name="exercise" id="exercise-select" onchange="showExerciseHistory()" required class="form-control"></select>
+                        <select name="exercise" id="exercise-select" onchange="showExerciseHistory(); renderQuickExercises()" required class="form-control"></select>
                     </label>
+                    <div class="space-y-2">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quick picks</span>
+                            <button type="button" id="favorite-exercise-toggle" onclick="toggleFavoriteExercise()" class="text-sm text-amber-400">☆ Favorite this exercise</button>
+                        </div>
+                        <div id="quick-exercises" class="flex flex-wrap gap-2" aria-label="Recent and favorite exercises"></div>
+                    </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         <label class="field-label">Set type
-                            <select name="set_type" id="set-type" onchange="toggleCardioFields()" class="form-control">
+                            <select name="set_type" id="set-type" onchange="toggleCardioFields()" aria-label="Set type" class="form-control">
                                 <option value="working">Working set</option><option value="warmup">Warm-up</option>
                                 <option value="drop">Drop set</option><option value="failure">To failure</option><option value="cardio">Cardio</option>
                             </select>
@@ -124,6 +143,12 @@
                         </label>
                         <div class="hidden sm:block"></div>
                     </div>
+                    <label class="field-label">Superset group
+                        <select name="superset_group" class="form-control">
+                            <option value="">No superset</option>
+                            {% for group in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ group }}">Superset {{ group }}</option>{% endfor %}
+                        </select>
+                    </label>
                     <div id="strength-fields" class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                         <label class="field-label">Weight
                             <input type="number" step="0.5" min="0" name="weight" id="set-weight" required value="0" class="form-control">
@@ -153,16 +178,44 @@
                 </form>
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+            <div class="workspace-card active-workout-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
                 <div class="flex flex-wrap justify-between items-center gap-2">
                     <h2 class="text-lg font-semibold text-emerald-500">Workout in progress{% if active_session_name %}: {{ active_session_name }}{% endif %}</h2>
+                    <p id="session-duration" class="text-sm text-slate-400" data-elapsed="{{ active_session_duration }}" data-finished="{{ 'true' if active_session_finished else 'false' }}" data-started="{{ 'true' if active_session_started else 'false' }}">Duration: --:--</p>
+                    <button id="start-workout" type="button" onclick="startWorkoutClock()" class="px-3 py-2 rounded-lg bg-emerald-700 text-sm text-white">Start workout</button>
                     <p id="routine-target" class="hidden w-full text-sm text-emerald-300" role="status"></p>
+                    <ul id="routine-set-checklist" class="hidden w-full grid grid-cols-1 sm:grid-cols-2 gap-2" aria-label="Routine set completion"></ul>
+                    <p id="routine-checklist-summary" class="hidden w-full text-xs text-slate-400"></p>
                     <button id="next-routine-exercise" type="button" onclick="advanceRoutine()" class="hidden px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Next routine exercise</button>
                 </div>
+                {% if active_session_id and active_session_sets and not active_session_finished %}
+                <form id="session-structure-form" action="{{ url_for('main.update_session_structure') }}" method="POST" class="flex flex-wrap items-center justify-between gap-2">
+                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                    <input type="hidden" name="exercise_order">
+                    <input type="hidden" name="superset_groups">
+                    <span class="text-xs text-slate-400">Reorder exercises or assign matching superset groups.</span>
+                    <button type="submit" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Save workout structure</button>
+                </form>
+                <form id="finish-session-form" action="{{ url_for('main.finish_session') }}" method="POST" class="flex justify-end">
+                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                    <input type="hidden" name="elapsed_seconds" value="{{ active_session_duration }}">
+                    <button type="submit" class="px-3 py-2 border border-slate-700 rounded-lg text-sm">Finish workout</button>
+                </form>
+                {% endif %}
                 <div id="active-session-exercises" class="space-y-3">
                     {% for group in active_session_groups %}
-                    <div class="border border-slate-800 rounded-xl p-3">
-                        <h3 class="font-medium text-emerald-400">{{ group.exercise }}</h3>
+                    <div class="active-exercise-group border border-slate-800 rounded-xl p-3" data-exercise="{{ group.exercise }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="font-medium text-emerald-400">{{ group.exercise }}{% if group.superset_group %} <span class="text-xs text-slate-400">· Superset {{ group.superset_group }}</span>{% endif %}</h3>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="move-exercise-up rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} up">↑</button>
+                                <button type="button" class="move-exercise-down rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} down">↓</button>
+                                <select class="exercise-superset form-control !mt-0 !w-auto !py-1 text-xs" aria-label="Superset group for {{ group.exercise }}">
+                                    <option value="" {% if not group.superset_group %}selected{% endif %}>No superset</option>
+                                    {% for superset in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ superset }}" {% if group.superset_group == superset %}selected{% endif %}>Group {{ superset }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
                         <ul class="mt-2 space-y-1 text-sm text-slate-300">
                             {% for item in group.sets %}
                             {% set set = item.workout %}
@@ -223,30 +276,63 @@
                 </div>
             </div>
 
-            <div id="exercise-history-panel" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
+            <div id="exercise-history-panel" class="workspace-card exercise-history-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
                 <h2 class="text-lg font-semibold text-emerald-500">Exercise history &amp; personal records</h2>
                 <p id="exercise-record-summary" class="text-sm text-slate-300"></p>
                 <ul id="exercise-history-list" class="space-y-2 text-sm text-slate-400"></ul>
                 <button type="button" onclick="copyPreviousSet()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm">Copy previous set</button>
+                <div id="progression-suggestion" class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                    <div>
+                        <h3 class="font-medium text-emerald-400">Next-session suggestion</h3>
+                        <p id="progression-summary" class="mt-1 text-sm text-slate-400">Log strength sets to get a suggested next target.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="field-label">Rep goal
+                            <input type="number" id="progression-rep-goal" min="1" max="30" value="12" class="form-control">
+                        </label>
+                        <label class="field-label">Weight goal (optional)
+                            <input type="number" id="progression-weight-goal" min="0" step="0.5" placeholder="No limit" class="form-control">
+                        </label>
+                    </div>
+                    <button type="button" onclick="applyProgressionSuggestion()" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Use suggested target</button>
+                </div>
             </div>
 
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="workspace-card rest-timer-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <h3 class="text-lg font-semibold mb-2 text-emerald-500">⏱️ Rest Timer</h3>
                 <div class="flex flex-wrap items-center gap-2 sm:gap-4">
                     <select id="timer-duration" class="form-control w-auto">
                         <option value="30">30 Seconds</option>
+                        <option value="45">45 Seconds</option>
                         <option value="60" selected>60 Seconds</option>
                         <option value="90">90 Seconds</option>
                         <option value="120">120 Seconds</option>
+                        <option value="180">180 Seconds</option>
                     </select>
                     <button type="button" id="timer-start" onclick="startTimer()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-medium transition">Start Timer</button>
                     <button type="button" id="timer-stop" onclick="stopTimer()" disabled class="px-6 py-2 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition">Stop Timer</button>
                 </div>
                 <div id="timer-display" class="mt-4 text-2xl font-mono text-emerald-500 hidden">00:00</div>
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-800 pt-4">
+                    <label class="field-label">Default rest for set type
+                        <select id="set-type-rest-preset" class="form-control">
+                            {% for seconds in [30, 45, 60, 90, 120, 180] %}<option value="{{ seconds }}">{{ seconds }} seconds</option>{% endfor %}
+                        </select>
+                    </label>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <button type="button" onclick="saveRestPreset('set-type')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save set-type default</button>
+                        <button type="button" onclick="saveRestPreset('exercise')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save for exercise</button>
+                    </div>
+                    <label class="sm:col-span-2 flex items-center gap-2 text-sm text-slate-300">
+                        <input type="checkbox" id="auto-start-rest" class="accent-emerald-500">
+                        Start the rest timer automatically after logging a set
+                    </label>
+                    <p id="rest-preset-status" class="sm:col-span-2 text-xs text-slate-500" aria-live="polite"></p>
+                </div>
             </div>
         </section>
 
-        <section id="section-library" class="tab-panel space-y-6 hidden">
+        <section id="section-library" role="tabpanel" aria-labelledby="tab-library" tabindex="0" class="tab-panel space-y-6 hidden">
             <div class="grid grid-cols-1 md:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.6fr)] gap-6 items-start">
                 <div class="space-y-6">
                     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
@@ -342,11 +428,14 @@
             </div>
         </section>
 
-        <section id="section-history" class="tab-panel space-y-6 hidden">
+        <section id="section-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" class="tab-panel space-y-6 hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
                 <div class="flex flex-wrap justify-between items-center gap-3">
                     <h2 class="text-lg font-semibold text-emerald-500">Workout Logs</h2>
-                    <a href="{{ url_for('main.export_backup') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">📥 Export Backup</a>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="{{ url_for('main.export_workouts_csv') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">Export workout CSV</a>
+                        <a href="{{ url_for('main.export_backup') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">📥 Export Backup</a>
+                    </div>
                 </div>
                 <form action="{{ url_for('main.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
                     <input type="hidden" name="tab" value="history">
@@ -389,8 +478,15 @@
                     <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
                         <div class="flex flex-wrap justify-between items-center gap-2">
                             <h3 class="font-semibold text-emerald-500">{{ group.name }} <span class="text-sm font-normal text-slate-400">· {{ group.date }}</span></h3>
-                            <span class="text-sm text-slate-400">{{ group.sets|length }} set{% if group.sets|length != 1 %}s{% endif %}</span>
+                            <span class="text-sm text-slate-400">{{ group.sets|length }} set{% if group.sets|length != 1 %}s{% endif %}{% if group.duration %} · {{ '%02d'|format(group.duration // 60) }}:{{ '%02d'|format(group.duration % 60) }}{% endif %}</span>
                         </div>
+                        <form action="{{ url_for('main.duplicate_session') }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-800 pt-3">
+                            <input type="hidden" name="session_id" value="{{ group.id }}">
+                            <label class="field-label">Repeat workout on
+                                <input type="date" name="date" required value="{{ today }}" class="form-control">
+                            </label>
+                            <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Repeat workout</button>
+                        </form>
                         <details class="border-t border-slate-800 pt-3">
                             <summary class="cursor-pointer text-sm text-emerald-500 hover:text-emerald-400">Edit workout name or date</summary>
                             <form action="{{ url_for('main.edit_session') }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -416,6 +512,7 @@
                             <div class="flex flex-wrap justify-between items-center gap-3">
                                 <div>
                                     <span class="font-medium">{{ log.exercise }}</span>
+                                    {% if log.get('superset_group') %}<span class="text-xs text-emerald-400"> · Superset {{ log.superset_group }}</span>{% endif %}
                                     {% if log.get('set_type') == 'cardio' %}
                                     <span class="text-sm text-slate-400"> · {{ log.muscle }} · Cardio{% if log.get('distance') %} · {{ log.distance }} {{ log.get('distance_unit', 'km') }}{% endif %}{% if log.get('duration') %} · {{ log.duration }} min{% endif %}</span>
                                     {% else %}
@@ -428,6 +525,7 @@
                                     <form action="{{ url_for('main.delete_workout', index=item.index) }}" method="POST" onsubmit="return confirm('Delete this set?')">
                                         <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
                                     </form>
+                                    <button type="button" class="text-sm text-slate-300 hover:text-white" onclick="copyWorkoutSet({{ item.index }})">Copy set to logger</button>
                                 </div>
                             </div>
                             <form id="edit-set-{{ item.index }}" action="{{ url_for('main.edit_workout', index=item.index) }}" method="POST" class="edit-set-form hidden mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -477,7 +575,7 @@
             </div>
         </section>
 
-        <section id="section-progress" class="tab-panel space-y-6 hidden">
+        <section id="section-progress" role="tabpanel" aria-labelledby="tab-progress" tabindex="0" class="tab-panel space-y-6 hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Exercise Progress</h2>
@@ -501,14 +599,42 @@
                         </select>
                     </label>
                 </div>
-                <p id="progress-records" class="text-sm text-slate-300"></p>
-                <p id="progress-summary" class="text-sm text-slate-300"></p>
-                <div class="chart-container"><svg id="progress-chart" viewBox="0 0 800 300" role="img" aria-label="Exercise progress chart"></svg></div>
+                <p id="progress-records" class="text-sm text-slate-300" aria-live="polite"></p>
+                <div class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <h3 class="font-medium text-emerald-400">Personal record milestones</h3>
+                    <ul id="personal-record-history" class="mt-2 space-y-2 text-sm text-slate-300"></ul>
+                    <p id="personal-record-empty" class="mt-2 text-sm text-slate-500">Log more workouts to build a milestone history.</p>
+                </div>
+                <p id="progress-summary" class="text-sm text-slate-300" aria-live="polite"></p>
+                <div class="chart-container"><svg id="progress-chart" viewBox="0 0 800 300" role="img" aria-label="Exercise progress chart" aria-describedby="progress-summary progress-chart-data"></svg></div>
+                <ul id="progress-chart-data" class="chart-data-list" aria-label="Chart data points"></ul>
                 <p id="progress-empty" class="hidden text-center text-slate-400">No data for this exercise and date range yet.</p>
+                <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3" aria-labelledby="training-insights-title">
+                    <div>
+                        <h3 id="training-insights-title" class="font-medium text-emerald-400">Training insights</h3>
+                        <p id="training-consistency" class="mt-1 text-sm text-slate-300" aria-live="polite">
+                            Last 7 days: {{ training_insights.training_days }} training day(s) · Current streak: {{ training_insights.streak }} day(s)
+                        </p>
+                        <p class="mt-1 text-sm text-slate-400">{{ training_insights.recovery_note }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-slate-300">Last 7 days: strength volume by muscle</h4>
+                        {% if training_insights.weekly_volume %}
+                        <ul class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {% for item in training_insights.weekly_volume %}
+                            <li class="flex justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2 text-sm">
+                                <span>{{ item.muscle }} <span class="text-slate-500">({{ item.sets }} sets)</span></span>
+                                <span class="font-medium text-emerald-400">{{ item.volume }} kg × reps</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}<p class="mt-2 text-sm text-slate-500">No strength sets recorded in the last 7 days.</p>{% endif %}
+                    </div>
+                </section>
             </div>
         </section>
 
-        <section id="section-routines" class="tab-panel space-y-6 hidden">
+        <section id="section-routines" role="tabpanel" aria-labelledby="tab-routines" tabindex="0" class="tab-panel space-y-6 hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Workout Routines</h2>
@@ -518,7 +644,7 @@
                     <input type="hidden" name="mode" value="builder">
                     <input type="hidden" name="exercises_json">
                     <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control"></label>
-                    <div class="routine-exercise-rows space-y-3"></div>
+                    <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
                     <div class="flex flex-wrap gap-2">
                         <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
                         <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Create routine</button>
@@ -533,17 +659,24 @@
                     <p class="text-sm text-slate-400">Log at least one set in the active session first.</p>
                     <button type="submit" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Save routine</button>
                 </form>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <a href="{{ url_for('main.export_routines') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-sm hover:bg-slate-700">Export routines JSON</a>
+                    <form action="{{ url_for('main.import_routines') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2" onsubmit="return confirm('Importing routines replaces your current routine list. Continue?')">
+                        <input type="file" name="routines_file" accept=".json,application/json" required class="min-w-0 flex-1 text-xs text-slate-400">
+                        <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Import routines</button>
+                    </form>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for routine in routines %}
                     <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
                         <form action="{{ url_for('main.update_routine', routine_id=routine.id) }}" method="POST" class="routine-editor space-y-3" data-initial="{{ routine.exercises|tojson|forceescape }}">
                             <input type="hidden" name="exercises_json">
                             <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required value="{{ routine.name }}" class="form-control"></label>
-                            <div class="routine-exercise-rows space-y-3"></div>
+                            <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
                             <div class="flex flex-wrap gap-2">
                                 <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
                                 <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Save routine</button>
-                                <button type="button" onclick="loadRoutine('{{ routine.id }}')" class="px-4 py-2 bg-emerald-800 text-white rounded-lg">Load routine</button>
+                                <button type="button" onclick="loadRoutine('{{ routine.id }}')" class="px-4 py-2 bg-emerald-800 text-white rounded-lg">Start routine</button>
                             </div>
                         </form>
                         <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
@@ -557,11 +690,19 @@
             </div>
         </section>
 
-        <section id="section-measurements" class="tab-panel space-y-6 hidden">
+        <section id="section-measurements" role="tabpanel" aria-labelledby="tab-measurements" tabindex="0" class="tab-panel space-y-6 hidden">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Body Measurements</h2>
                     <p class="mt-1 text-sm text-slate-400">Record body weight, measurements, and notes over time.</p>
+                    <a href="{{ url_for('main.export_measurements_csv') }}" class="mt-3 inline-block rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm">Export measurements CSV</a>
+                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                        <a href="{{ url_for('main.export_goals') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-sm hover:bg-slate-700">Export goals JSON</a>
+                        <form action="{{ url_for('main.import_goals') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2" onsubmit="return confirm('Importing goals replaces your current goal list. Continue?')">
+                            <input type="file" name="goals_file" accept=".json,application/json" required class="min-w-0 flex-1 text-xs text-slate-400">
+                            <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Import goals</button>
+                        </form>
+                    </div>
                 </div>
                 <div>
                     <label class="field-label">Chart
@@ -570,7 +711,9 @@
                             <option value="chest">Chest</option><option value="hips">Hips</option>
                         </select>
                     </label>
-                    <div class="chart-container mt-3"><svg id="measurement-chart" viewBox="0 0 800 300" role="img" aria-label="Body measurement history chart"></svg></div>
+                    <div class="chart-container mt-3"><svg id="measurement-chart" viewBox="0 0 800 300" role="img" aria-label="Body measurement history chart" aria-describedby="measurement-chart-summary measurement-chart-data"></svg></div>
+                        <p id="measurement-chart-summary" class="text-sm text-slate-300" aria-live="polite"></p>
+                        <ul id="measurement-chart-data" class="chart-data-list" aria-label="Measurement chart data points"></ul>
                     <p id="measurement-chart-empty" class="hidden text-center text-slate-400">No values for this measurement yet.</p>
                 </div>
                 <form action="{{ url_for('main.save_measurement') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -583,6 +726,50 @@
                     <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" placeholder="Optional" class="form-control"></textarea></label>
                     <button type="submit" class="self-end px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Save measurements</button>
                 </form>
+                <div class="space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="font-semibold">Goals</h3>
+                    </div>
+                    <form action="{{ url_for('main.save_goal') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                        <label class="field-label">Metric
+                            <select name="metric" id="goal-metric" onchange="updateGoalMetricUnit()" class="form-control">
+                                <option value="body_weight">Body weight</option>
+                                <option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option>
+                            </select>
+                        </label>
+                        <label class="field-label">Target
+                            <input type="number" name="target" min="0.1" step="0.1" required class="form-control">
+                        </label>
+                        <label class="field-label">Unit
+                            <select name="unit" id="goal-unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select>
+                        </label>
+                        <label class="field-label">Goal direction
+                            <select name="direction" id="goal-direction" class="form-control"><option value="decrease">Decrease to target</option><option value="increase">Increase to target</option></select>
+                        </label>
+                        <label class="field-label">Target date (optional)
+                            <input type="date" name="target_date" class="form-control">
+                        </label>
+                        <button type="submit" class="self-end rounded-xl bg-emerald-600 px-4 py-2.5 text-white">Add goal</button>
+                    </form>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {% for goal in goals %}
+                        <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-2">
+                            <div class="flex justify-between gap-2">
+                                <strong>{{ {'body_weight': 'Body weight', 'waist': 'Waist', 'chest': 'Chest', 'hips': 'Hips'}.get(goal.metric, goal.metric) }}: {{ goal.target }} {{ goal.unit }}{% if goal.target_date %} by {{ goal.target_date }}{% endif %}</strong>
+                                <form action="{{ url_for('main.delete_goal', goal_id=goal.id) }}" method="POST" onsubmit="return confirm('Delete this goal?')">
+                                    <button type="submit" class="text-sm text-rose-500">Delete</button>
+                                </form>
+                            </div>
+                            {% if goal.current is not none %}
+                            <p class="text-sm text-slate-400">Current: {{ '%.1f'|format(goal.current) }} {{ goal.unit }} · {{ 'Goal reached' if goal.complete else goal.progress ~ '% there' }}</p>
+                            <div class="goal-progress-track" role="progressbar" aria-label="Goal progress" aria-valuenow="{{ goal.progress }}" aria-valuemin="0" aria-valuemax="100">
+                                <div class="goal-progress-fill" style="width: {{ goal.progress }}%"></div>
+                            </div>
+                            {% else %}<p class="text-sm text-slate-400">Log a measurement to start tracking this goal.</p>{% endif %}
+                        </article>
+                        {% else %}<p class="text-sm text-slate-400">No goals yet. Add a body-weight or measurement goal above.</p>{% endfor %}
+                    </div>
+                </div>
                 <div class="space-y-3">
                     <h3 class="font-semibold">Measurement history</h3>
                     {% for item in measurements %}
@@ -635,11 +822,16 @@
         window.progressData = {{ progress_workouts|tojson }};
         window.routinesData = {{ routines|tojson }};
         window.measurementsData = {{ measurements|tojson }};
+        window.activeSessionFinished = {{ active_session_finished|tojson }};
+        window.activeSessionStarted = {{ active_session_started|tojson }};
         const initialTab = {{ selected_tab|tojson }};
+        initializeAccessibleNavigation();
         updateExercises();
         switchTab(["log", "library", "history", "progress", "routines", "measurements"].includes(initialTab) ? initialTab : "log");
         initializeWorkoutSession();
+        initializeRestPresets();
         toggleCardioFields();
+        initializeActiveRoutine();
         document.querySelectorAll(".edit-set-form, .active-edit-form").forEach((form) => {
             toggleEditCardioFields(form.id.replace(/^edit-(?:active-)?set-/, ""));
         });
@@ -649,6 +841,11 @@
         initializeRoutineEditors();
         renderMeasurementChart();
         initializeOfflineSupport();
+        initializeSessionStructure();
+        renderQuickExercises();
+        updateGoalMetricUnit();
+        document.getElementById("progression-rep-goal").addEventListener("input", showExerciseHistory);
+        document.getElementById("progression-weight-goal").addEventListener("input", showExerciseHistory);
     </script>
 </body>
 </html>
