@@ -12,12 +12,15 @@ from exercise_library import DEFAULT_EXERCISES
 
 
 DATA_FILE = Path(__file__).with_name("workout_data.json")
-BACKUP_DIR = DATA_FILE.with_name("workout_backups")
 MAX_AUTOMATIC_BACKUPS = 10
 logger = logging.getLogger(__name__)
 
 
-def _validate_data(data: object) -> WorkoutData:
+def _backup_dir() -> Path:
+    return DATA_FILE.with_name("workout_backups")
+
+
+def validate_data(data: object) -> WorkoutData:
     if not isinstance(data, dict):
         raise ValueError("Workout data must be a JSON object.")
 
@@ -25,6 +28,7 @@ def _validate_data(data: object) -> WorkoutData:
     stored_library = data.get("exercises", deepcopy(DEFAULT_EXERCISES))
     routines = data.get("routines", [])
     measurements = data.get("measurements", [])
+    goals = data.get("goals", [])
     if (
         not isinstance(workouts, list)
         or not all(isinstance(item, dict) for item in workouts)
@@ -33,6 +37,8 @@ def _validate_data(data: object) -> WorkoutData:
         or not all(isinstance(item, dict) for item in routines)
         or not isinstance(measurements, list)
         or not all(isinstance(item, dict) for item in measurements)
+        or not isinstance(goals, list)
+        or not all(isinstance(item, dict) for item in goals)
     ):
         raise ValueError("Workout data has an invalid structure.")
 
@@ -49,27 +55,38 @@ def _validate_data(data: object) -> WorkoutData:
         "exercises": exercises,
         "routines": routines,
         "measurements": measurements,
+        "goals": goals,
     }
 
 
 def _read_file(path: Path) -> WorkoutData:
     with path.open("r", encoding="utf-8") as data_file:
-        return _validate_data(json.load(data_file))
+        return validate_data(json.load(data_file))
 
 
 def automatic_backups() -> list[Path]:
-    if not BACKUP_DIR.exists():
+    backup_dir = _backup_dir()
+    if not backup_dir.exists():
         return []
-    return sorted(BACKUP_DIR.glob("workout_data_*.json"), reverse=True)
+    return sorted(backup_dir.glob("workout_data_*.json"), reverse=True)
 
 
 def load_data() -> WorkoutData:
     if not DATA_FILE.exists():
+        for backup_path in automatic_backups():
+            try:
+                recovered = _read_file(backup_path)
+                save_data(recovered, create_backup=False)
+                logger.warning("Recovered missing workout data from automatic backup %s", backup_path)
+                return recovered
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError, ValueError) as backup_error:
+                logger.error("Automatic backup %s is unusable: %s", backup_path, backup_error)
         return {
             "workouts": [],
             "exercises": deepcopy(DEFAULT_EXERCISES),
             "routines": [],
             "measurements": [],
+            "goals": [],
         }
 
     try:
@@ -92,9 +109,10 @@ def load_data() -> WorkoutData:
 def save_data(data: WorkoutData, create_backup: bool = True) -> None:
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     if create_backup and DATA_FILE.exists():
-        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        backup_dir = _backup_dir()
+        backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        backup_path = BACKUP_DIR / f"workout_data_{timestamp}.json"
+        backup_path = backup_dir / f"workout_data_{timestamp}.json"
         shutil.copy2(DATA_FILE, backup_path)
         for obsolete in automatic_backups()[MAX_AUTOMATIC_BACKUPS:]:
             obsolete.unlink()

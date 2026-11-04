@@ -4,9 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IronTrack Gym Logger</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#020617">
     <script>
         if (localStorage.getItem("irontrack-theme") === "light") {
             document.documentElement.classList.remove("dark");
+        }
+        const savedAccent = localStorage.getItem("irontrack-accent");
+        if (savedAccent && /^#[\da-f]{6}$/i.test(savedAccent)) {
+            document.documentElement.style.setProperty("--accent-color", savedAccent);
         }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,15 +32,31 @@
                 <h1 class="text-xl font-bold tracking-tight">IronTrack</h1>
             </div>
             <div class="flex items-center gap-3">
+                <button id="install-app" type="button" class="hidden px-3 py-1.5 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg">Install app</button>
                 <span id="active-timer" class="hidden rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-1.5 font-mono text-sm text-emerald-300" role="status" aria-live="polite"></span>
+                <label class="accent-picker" title="Change site accent color">
+                    <span>Accent</span>
+                    <input type="color" id="accent-color" aria-label="Main accent color" value="#10b981" onchange="setAccentColor(this.value)">
+                </label>
+                <button type="button" id="reset-accent" onclick="resetAccentColor()" class="px-2 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700" title="Restore default accent color">Reset</button>
                 <button type="button" onclick="toggleDarkMode()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
                     <span id="theme-label">☀️ Light mode</span>
                 </button>
             </div>
         </div>
     </header>
+    <script>
+        const savedAccentPicker = localStorage.getItem("irontrack-accent");
+        if (savedAccentPicker && /^#[\da-f]{6}$/i.test(savedAccentPicker)) {
+            document.getElementById("accent-color").value = savedAccentPicker;
+        }
+    </script>
 
     <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+        <aside id="offline-status" class="hidden rounded-xl border border-amber-700 bg-amber-950 p-3 text-sm text-amber-200" aria-live="polite">
+            <span id="offline-status-text"></span>
+            <button type="button" id="sync-offline-workouts" onclick="syncOfflineWorkouts()" class="ml-3 underline">Sync now</button>
+        </aside>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -58,6 +80,7 @@
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
                 <h2 class="text-lg font-semibold mb-4 text-emerald-500">Record Exercise Set</h2>
                 <form action="{{ url_for('main.log_workout') }}" method="POST" class="space-y-4">
+                    <input type="hidden" name="entry_id" class="entry-id">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="field-label">
                             <label for="workout-date">Workout date</label>
@@ -133,6 +156,7 @@
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
                 <div class="flex flex-wrap justify-between items-center gap-2">
                     <h2 class="text-lg font-semibold text-emerald-500">Workout in progress{% if active_session_name %}: {{ active_session_name }}{% endif %}</h2>
+                    <p id="routine-target" class="hidden w-full text-sm text-emerald-300" role="status"></p>
                     <button id="next-routine-exercise" type="button" onclick="advanceRoutine()" class="hidden px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Next routine exercise</button>
                 </div>
                 <div id="active-session-exercises" class="space-y-3">
@@ -457,7 +481,7 @@
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Exercise Progress</h2>
-                    <p class="text-sm text-slate-400 mt-1">Track your best set or total volume over time.</p>
+                    <p class="text-sm text-slate-400 mt-1">Track strength records and cardio distance or duration trends.</p>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <label class="field-label">Exercise
@@ -468,6 +492,7 @@
                     <label class="field-label">Metric
                         <select id="progress-metric" onchange="renderProgressChart()" class="form-control">
                             <option value="weight">Best weight</option><option value="reps">Best reps</option><option value="volume">Total volume</option>
+                            <option value="cardio-distance">Cardio distance</option><option value="cardio-duration">Cardio duration</option>
                         </select>
                     </label>
                     <label class="field-label">Date range
@@ -476,6 +501,7 @@
                         </select>
                     </label>
                 </div>
+                <p id="progress-records" class="text-sm text-slate-300"></p>
                 <p id="progress-summary" class="text-sm text-slate-300"></p>
                 <div class="chart-container"><svg id="progress-chart" viewBox="0 0 800 300" role="img" aria-label="Exercise progress chart"></svg></div>
                 <p id="progress-empty" class="hidden text-center text-slate-400">No data for this exercise and date range yet.</p>
@@ -486,8 +512,18 @@
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Workout Routines</h2>
-                    <p class="mt-1 text-sm text-slate-400">Save an exercise sequence from a completed workout, then load it as a guide for your next session.</p>
+                    <p class="mt-1 text-sm text-slate-400">Build editable routines with exercise order, target sets, reps, weight, and rest time.</p>
                 </div>
+                <form action="{{ url_for('main.save_routine') }}" method="POST" class="routine-editor space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4" data-initial="[]">
+                    <input type="hidden" name="mode" value="builder">
+                    <input type="hidden" name="exercises_json">
+                    <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control"></label>
+                    <div class="routine-exercise-rows space-y-3"></div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Create routine</button>
+                    </div>
+                </form>
                 <form action="{{ url_for('main.save_routine') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
                     <input type="hidden" name="session_id" id="routine-session-id" value="{{ active_session_id }}">
                     <input type="hidden" name="session_name" id="routine-session-name">
@@ -500,21 +536,22 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {% for routine in routines %}
                     <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                        <div class="flex justify-between gap-2 items-start">
-                            <div>
-                                <h3 class="font-semibold text-emerald-400">{{ routine.name }}</h3>
-                                <ol class="mt-2 list-decimal list-inside text-sm text-slate-400 space-y-1">
-                                    {% for item in routine.exercises %}<li>{{ item.exercise }} <span class="text-slate-500">({{ item.muscle }})</span></li>{% endfor %}
-                                </ol>
+                        <form action="{{ url_for('main.update_routine', routine_id=routine.id) }}" method="POST" class="routine-editor space-y-3" data-initial="{{ routine.exercises|tojson|forceescape }}">
+                            <input type="hidden" name="exercises_json">
+                            <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required value="{{ routine.name }}" class="form-control"></label>
+                            <div class="routine-exercise-rows space-y-3"></div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
+                                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Save routine</button>
+                                <button type="button" onclick="loadRoutine('{{ routine.id }}')" class="px-4 py-2 bg-emerald-800 text-white rounded-lg">Load routine</button>
                             </div>
-                            <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
-                                <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete</button>
-                            </form>
-                        </div>
-                        <button type="button" onclick="loadRoutine('{{ routine.id }}')" class="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Load routine</button>
+                        </form>
+                        <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
+                            <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete routine</button>
+                        </form>
                     </article>
                     {% else %}
-                    <p class="text-sm text-slate-400">No routines saved yet. Log a workout, then save its exercise sequence here.</p>
+                    <p class="text-sm text-slate-400">No saved routines yet. Create one above or save an active workout session.</p>
                     {% endfor %}
                 </div>
             </div>
@@ -525,6 +562,16 @@
                 <div>
                     <h2 class="text-lg font-semibold text-emerald-500">Body Measurements</h2>
                     <p class="mt-1 text-sm text-slate-400">Record body weight, measurements, and notes over time.</p>
+                </div>
+                <div>
+                    <label class="field-label">Chart
+                        <select id="measurement-metric" onchange="renderMeasurementChart()" class="form-control">
+                            <option value="body_weight">Body weight</option><option value="waist">Waist</option>
+                            <option value="chest">Chest</option><option value="hips">Hips</option>
+                        </select>
+                    </label>
+                    <div class="chart-container mt-3"><svg id="measurement-chart" viewBox="0 0 800 300" role="img" aria-label="Body measurement history chart"></svg></div>
+                    <p id="measurement-chart-empty" class="hidden text-center text-slate-400">No values for this measurement yet.</p>
                 </div>
                 <form action="{{ url_for('main.save_measurement') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <label class="field-label">Date<input type="date" name="date" required value="{{ today }}" class="form-control"></label>
@@ -539,7 +586,7 @@
                 <div class="space-y-3">
                     <h3 class="font-semibold">Measurement history</h3>
                     {% for item in measurements %}
-                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
                         <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                             <strong class="text-emerald-400">{{ item.date }}</strong>
                             {% if item.body_weight %}<span>Weight: {{ item.body_weight }} {{ item.unit }}</span>{% endif %}
@@ -548,17 +595,46 @@
                             {% if item.hips %}<span>Hips: {{ item.hips }} cm</span>{% endif %}
                         </div>
                         {% if item.notes %}<p class="mt-2 text-sm text-slate-400">{{ item.notes }}</p>{% endif %}
+                        <details>
+                            <summary class="cursor-pointer text-sm text-emerald-400">Edit measurement</summary>
+                            <form action="{{ url_for('main.update_measurement', measurement_id=item.id) }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <label class="field-label">Date<input type="date" name="date" required value="{{ item.date }}" class="form-control"></label>
+                                <label class="field-label">Body weight<input type="number" step="0.1" min="0" name="body_weight" value="{{ item.body_weight }}" class="form-control"></label>
+                                <label class="field-label">Weight unit<select name="unit" class="form-control"><option value="kg" {% if item.unit == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if item.unit == 'lb' %}selected{% endif %}>lb</option></select></label>
+                                <label class="field-label">Waist (cm)<input type="number" step="0.1" min="0" name="waist" value="{{ item.waist }}" class="form-control"></label>
+                                <label class="field-label">Chest (cm)<input type="number" step="0.1" min="0" name="chest" value="{{ item.chest }}" class="form-control"></label>
+                                <label class="field-label">Hips (cm)<input type="number" step="0.1" min="0" name="hips" value="{{ item.hips }}" class="form-control"></label>
+                                <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ item.notes }}</textarea></label>
+                                <button type="submit" class="self-end px-4 py-2.5 bg-emerald-600 text-white rounded-xl">Save changes</button>
+                            </form>
+                            <form action="{{ url_for('main.delete_measurement', measurement_id=item.id) }}" method="POST" class="mt-2" onsubmit="return confirm('Delete this measurement?')">
+                                <button type="submit" class="text-sm text-rose-500">Delete measurement</button>
+                            </form>
+                        </details>
                     </article>
                     {% else %}<p class="text-sm text-slate-400">No measurements recorded yet.</p>{% endfor %}
                 </div>
             </div>
         </section>
+        {% if automatic_backups %}
+        <section class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <h2 class="font-semibold">Automatic recovery snapshots</h2>
+            <p class="my-2 text-sm text-slate-400">Snapshots are created before each save. Restoring replaces current data.</p>
+            <form action="{{ url_for('main.restore_automatic_backup') }}" method="POST" class="flex flex-wrap gap-2" onsubmit="return confirm('Restore this snapshot? Current data will be saved as a new snapshot first.')">
+                <select name="backup_name" class="form-control flex-1">
+                    {% for backup in automatic_backups %}<option value="{{ backup }}">{{ backup }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded-lg">Restore snapshot</button>
+            </form>
+        </section>
+        {% endif %}
     </main>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script>
         window.exercisesData = {{ exercises|tojson }};
         window.progressData = {{ progress_workouts|tojson }};
         window.routinesData = {{ routines|tojson }};
+        window.measurementsData = {{ measurements|tojson }};
         const initialTab = {{ selected_tab|tojson }};
         updateExercises();
         switchTab(["log", "library", "history", "progress", "routines", "measurements"].includes(initialTab) ? initialTab : "log");
@@ -570,6 +646,9 @@
         showExerciseHistory();
         filterExerciseLibrary();
         renderProgressChart();
+        initializeRoutineEditors();
+        renderMeasurementChart();
+        initializeOfflineSupport();
     </script>
 </body>
 </html>

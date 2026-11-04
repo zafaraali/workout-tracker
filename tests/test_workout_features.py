@@ -209,6 +209,126 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b"82.5", page.data)
         self.assertIn(b"Morning measurement", page.data)
 
+    def test_measurement_can_be_updated_and_deleted(self):
+        self.client.post(
+            "/save_measurement",
+            data={"date": "2026-10-12", "body_weight": "82.5", "unit": "kg", "waist": "84"},
+        )
+        measurement_id = storage.load_data()["measurements"][0]["id"]
+        updated = self.client.post(
+            f"/update_measurement/{measurement_id}",
+            data={
+                "date": "2026-10-13",
+                "body_weight": "80",
+                "unit": "kg",
+                "waist": "82",
+                "chest": "",
+                "hips": "",
+                "notes": "Updated",
+            },
+        )
+        self.assertEqual(updated.status_code, 302)
+        self.assertEqual(storage.load_data()["measurements"][0]["date"], "2026-10-13")
+        self.assertEqual(storage.load_data()["measurements"][0]["waist"], "82")
+        self.client.post(f"/delete_measurement/{measurement_id}")
+        self.assertEqual(storage.load_data()["measurements"], [])
+
+    def test_legacy_measurement_without_id_can_be_deleted(self):
+        data = storage.load_data()
+        data["measurements"].append(
+            {
+                "date": "2025-01-02",
+                "body_weight": "80",
+                "unit": "kg",
+                "waist": "82",
+                "chest": "",
+                "hips": "",
+                "notes": "",
+            }
+        )
+        storage.save_data(data)
+
+        self.client.post("/delete_measurement/legacy-measurement-0")
+
+        self.assertEqual(storage.load_data()["measurements"], [])
+
+    def test_routine_targets_can_be_created_and_edited(self):
+        routine_data = json.dumps([
+            {
+                "muscle": "Chest",
+                "exercise": "Barbell Bench Press",
+                "target_sets": "4",
+                "target_reps": "6-8",
+                "target_weight": "60",
+                "rest_seconds": "120",
+                "notes": "Pause reps",
+            }
+        ])
+        self.client.post(
+            "/save_routine",
+            data={"mode": "builder", "name": "Strength A", "exercises_json": routine_data},
+        )
+        routine = storage.load_data()["routines"][0]
+        self.assertEqual(routine["exercises"][0]["target_sets"], 4)
+        self.assertEqual(routine["exercises"][0]["rest_seconds"], 120)
+
+        updated_data = routine_data.replace('"target_sets": "4"', '"target_sets": "5"')
+        response = self.client.post(
+            f"/update_routine/{routine['id']}",
+            data={"name": "Strength B", "exercises_json": updated_data},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(storage.load_data()["routines"][0]["name"], "Strength B")
+        self.assertEqual(storage.load_data()["routines"][0]["exercises"][0]["target_sets"], 5)
+
+    def test_save_creates_recoverable_automatic_backup(self):
+        data = storage.load_data()
+        data["workouts"].append({"date": "2026-10-12", "exercise": "Barbell Bench Press"})
+        storage.save_data(data)
+        changed = storage.load_data()
+        changed["workouts"].append({"date": "2026-10-13", "exercise": "Barbell Row"})
+        storage.save_data(changed)
+        self.assertEqual(len(storage.automatic_backups()), 1)
+
+        storage.DATA_FILE.write_text("{damaged", encoding="utf-8")
+        recovered = storage.load_data()
+        self.assertEqual(len(recovered["workouts"]), 1)
+        self.assertEqual(recovered["workouts"][0]["date"], "2026-10-12")
+
+    def test_log_request_with_same_entry_id_is_idempotent(self):
+        self.log_set(entry_id="offline-entry-1")
+        self.log_set(entry_id="offline-entry-1")
+        self.assertEqual(len(storage.load_data()["workouts"]), 1)
+
+    def test_offline_sync_endpoint_reports_validation_failures(self):
+        response = self.client.post(
+            "/log",
+            data={
+                "date": "invalid",
+                "muscle": "Chest",
+                "exercise": "Barbell Bench Press",
+                "weight": "60",
+                "unit": "kg",
+                "reps": "8",
+                "rpe": "7",
+                "entry_id": "queued-entry",
+            },
+            headers={"X-Offline-Sync": "true"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json["ok"])
+        self.assertEqual(storage.load_data()["workouts"], [])
+
+    def test_installable_app_assets_are_served(self):
+        worker = self.client.get("/service-worker.js")
+        manifest = self.client.get("/static/manifest.json")
+        self.assertEqual(worker.status_code, 200)
+        self.assertIn(b"irontrack-shell", worker.data)
+        self.assertEqual(manifest.status_code, 200)
+        self.assertIn(b"standalone", manifest.data)
+        worker.close()
+        manifest.close()
+
     def test_cardio_set_accepts_distance_and_duration_without_reps(self):
         response = self.log_set(
             set_type="cardio",
@@ -258,6 +378,13 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b'id="library-no-results"', response.data)
         self.assertIn(b'name="notes"', response.data)
         self.assertIn(b"Set notes", response.data)
+
+    def test_accent_color_picker_is_available(self):
+        response = self.client.get("/")
+        self.assertIn(b'id="accent-color"', response.data)
+        self.assertIn(b'onchange="setAccentColor(this.value)"', response.data)
+        self.assertIn(b'document.getElementById("accent-color").value = savedAccentPicker', response.data)
+        self.assertIn(b'id="reset-accent"', response.data)
 
     def test_legacy_backup_workout_without_optional_fields_loads(self):
         legacy = {

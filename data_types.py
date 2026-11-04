@@ -18,6 +18,9 @@ class WorkoutEntry(TypedDict):
     set_type: NotRequired[str]
     distance: NotRequired[str]
     duration: NotRequired[str]
+    entry_id: NotRequired[str]
+    elapsed_seconds: NotRequired[int]
+    superset_group: NotRequired[str]
 
 class RoutineExercise(TypedDict):
     muscle: str
@@ -46,8 +49,18 @@ class Measurement(TypedDict):
     notes: str
 
 
+class FitnessGoal(TypedDict):
+    id: str
+    metric: str
+    target: str
+    unit: str
+    direction: str
+    target_date: NotRequired[str]
+
+
 class WorkoutData(TypedDict):
     workouts: list[WorkoutEntry]
     exercises: ExerciseLibrary
     routines: list[Routine]
     measurements: list[Measurement]
+    goals: list[FitnessGoal]
