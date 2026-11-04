@@ -32,7 +32,8 @@
             "Push-ups",
             "Chest press machine",
             "Db press",
-            "Machine flys"
+            "Machine flys",
+            "Weighted Pushups"
         ],
         "Back": [
             "Pull-ups",
@@ -72,5 +73,7 @@
             "Ab crunch",
             "Leg raises"
         ]
-    }
+    },
+    "routines": [],
+    "measurements": []
 }

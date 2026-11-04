@@ -134,6 +134,218 @@ html:not(.dark) .date-picker-button:hover {
     color: #94a3b8;
 }
 
+.nav-icon {
+    display: none;
+}
+
+.app-nav {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.5rem;
+    border-bottom: 1px solid #1e293b;
+    padding-bottom: 0.5rem;
+}
+
+.app-nav .tab-button {
+    min-width: 0;
+    border-radius: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    font-weight: 500;
+    transition: background-color 150ms, color 150ms;
+}
+
 html:not(.dark) .tab-button.text-slate-400 {
     color: #64748b;
+}
+
+.chart-container {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.chart-container svg {
+    display: block;
+    width: 100%;
+    min-width: 520px;
+    height: auto;
+}
+
+.chart-gridline {
+    stroke: #334155;
+    stroke-width: 1;
+}
+
+.chart-label {
+    fill: #94a3b8;
+    font-size: 12px;
+}
+
+.chart-line {
+    fill: none;
+    stroke: #10b981;
+    stroke-width: 3;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.chart-point {
+    fill: #10b981;
+    stroke: #064e3b;
+    stroke-width: 2;
+}
+
+html:not(.dark) .chart-gridline {
+    stroke: #cbd5e1;
+}
+
+html:not(.dark) .chart-label {
+    fill: #475569;
+}
+
+html:not(.dark) .calendar-day {
+    color: #334155;
+}
+
+html:not(.dark) .calendar-day:hover,
+html:not(.dark) .calendar-day-selected {
+    background-color: #cbd5e1;
+    color: #0f172a;
+}
+
+html:not(.dark) .calendar-day-active {
+    background-color: #a7f3d0;
+    color: #064e3b;
+}
+
+.edit-set-form label {
+    min-width: 0;
+}
+
+.calendar-day {
+    display: block;
+    min-height: 2.5rem;
+    color: #cbd5e1;
+}
+
+.calendar-day:hover,
+.calendar-day-selected {
+    background-color: #334155;
+    color: #ffffff;
+}
+
+.calendar-day-active {
+    background-color: #064e3b;
+    color: #a7f3d0;
+}
+
+.calendar-day-active:hover,
+.calendar-day-active.calendar-day-selected {
+    background-color: #047857;
+}
+
+.edit-set-form .contents {
+    display: contents;
+}
+
+.active-edit-form .contents {
+    display: contents;
+}
+
+.edit-set-form .contents.hidden,
+.active-edit-form .contents.hidden {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    main {
+        padding-top: 1rem;
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    }
+
+    .app-nav {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: 60;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.25rem;
+        padding: 0.5rem 0.625rem calc(0.5rem + env(safe-area-inset-bottom));
+        border-top: 1px solid #1e293b;
+        border-bottom: 0;
+        background: #0f172a;
+        box-shadow: 0 -8px 24px rgb(2 6 23 / 25%);
+    }
+
+    .app-nav .tab-button {
+        display: flex;
+        min-width: 0;
+        min-height: 3.25rem;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.125rem;
+        padding: 0.375rem 0.125rem;
+        border-radius: 0.625rem;
+        font-size: 0.6875rem;
+        line-height: 1rem;
+        white-space: nowrap;
+    }
+
+    .app-nav .nav-icon {
+        display: block;
+        font-size: 1.125rem;
+        line-height: 1.25rem;
+    }
+
+    html:not(.dark) .app-nav {
+        border-color: #cbd5e1;
+        background: #ffffff;
+        box-shadow: 0 -8px 24px rgb(15 23 42 / 10%);
+    }
+
+    main .rounded-2xl.p-6 {
+        padding: 1rem;
+    }
+
+    #active-timer {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    #theme-label {
+        white-space: nowrap;
+    }
+
+    .date-picker-button {
+        padding: 0.625rem;
+    }
+
+    .chart-container svg {
+        min-width: 480px;
+    }
+
+    #section-history article > .flex {
+        align-items: flex-start;
+    }
+
+    #section-history details form > button {
+        min-height: 2.75rem;
+    }
+}
+
+@media (max-width: 360px) {
+    header .text-xl {
+        font-size: 1rem;
+    }
+
+    header > div {
+        column-gap: 0.5rem;
+    }
+
+    #active-timer {
+        font-size: 0.6875rem;
+    }
+
+    .tab-button {
+        font-size: 0.8125rem;
+    }
 }
