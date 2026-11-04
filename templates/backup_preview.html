@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Review backup import · IronTrack</title>
+    <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+    <main class="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+        <section class="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl">
+            <h1 class="text-2xl font-semibold text-emerald-400">Review backup import</h1>
+            <p class="mt-2 text-sm text-slate-300">Your current data has not been changed. Choose how to apply the validated backup.</p>
+            <div class="mt-6 overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead><tr class="border-b border-slate-700 text-slate-400"><th class="py-2">Data</th><th>Current</th><th>Backup</th><th>After merge</th></tr></thead>
+                    <tbody>
+                    {% for label, key in [('Workout sets', 'workouts'), ('Exercise categories', 'exercises'), ('Routines', 'routines'), ('Measurements', 'measurements'), ('Goals', 'goals')] %}
+                        <tr class="border-b border-slate-800"><th scope="row" class="py-2 font-medium">{{ label }}</th>
+                            <td>{{ current[key]|length }}</td><td>{{ imported[key]|length }}</td><td>{{ merged[key]|length }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm">
+                <h2 class="font-medium">Compatibility</h2>
+                {% if compatibility_notes %}
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-slate-400">{% for note in compatibility_notes %}<li>{{ note }}</li>{% endfor %}</ul>
+                {% else %}
+                <p class="mt-2 text-slate-400">No missing sections or unsupported data structures detected.</p>
+                {% endif %}
+            </div>
+            <form action="{{ url_for('main.confirm_backup_import') }}" method="POST" class="mt-6 space-y-4">
+                <textarea name="backup_json" class="hidden" aria-hidden="true">{{ backup_json }}</textarea>
+                <fieldset class="space-y-3">
+                    <legend class="mb-2 font-medium">Import behavior</legend>
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-700 p-3">
+                        <input type="radio" name="mode" value="merge" required class="mt-1">
+                        <span><strong>Merge</strong><span class="block text-sm text-slate-400">Keep current data and add items from the backup. Existing workout entries with matching IDs, routines with matching IDs or names, and goals with matching IDs or targets are not duplicated.</span></span>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-xl border border-slate-700 p-3">
+                        <input type="radio" name="mode" value="replace" required class="mt-1">
+                        <span><strong>Replace</strong><span class="block text-sm text-slate-400">Replace all current workouts, exercises, routines, measurements, and goals with the backup.</span></span>
+                    </label>
+                </fieldset>
+                <div class="flex flex-wrap gap-3">
+                    <button type="submit" class="rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white">Confirm import</button>
+                    <a href="{{ url_for('main.index', tab='history') }}" class="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2">Cancel</a>
+                </div>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

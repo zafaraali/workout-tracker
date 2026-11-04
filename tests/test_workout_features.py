@@ -53,6 +53,132 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b"Upper body", history.data)
         self.assertIn(b"Controlled tempo", history.data)
 
+    def test_backup_preview_is_non_mutating_and_supports_merge_or_replace(self):
+        current = storage.load_data()
+        current["workouts"] = [{
+            "entry_id": "same", "date": "2026-10-12", "muscle": "Chest",
+            "exercise": "Barbell Bench Press", "weight": "60", "reps": "8",
+        }]
+        current["routines"] = [{"id": "current-routine", "name": "Existing", "exercises": []}]
+        storage.save_data(current)
+        backup = {
+            "workouts": [
+                {
+                    "entry_id": "same", "date": "2026-10-12", "muscle": "Chest",
+                    "exercise": "Barbell Bench Press", "weight": "60", "reps": "8",
+                },
+                {
+                    "entry_id": "new", "date": "2026-10-13", "muscle": "Chest",
+                    "exercise": "Barbell Bench Press", "weight": "62.5", "reps": "8",
+                },
+            ],
+            "exercises": {
+                **DEFAULT_EXERCISES,
+                "Chest": [*DEFAULT_EXERCISES["Chest"], "Cable Fly"],
+            },
+            "routines": [
+                {"id": "backup-routine", "name": "Existing", "exercises": []},
+                {"id": "new-routine", "name": "New", "exercises": []},
+            ],
+            "measurements": [],
+            "goals": [],
+        }
+        backup_json = json.dumps(backup)
+        preview = self.client.post(
+            "/import",
+            data={"backup_file": (io.BytesIO(backup_json.encode()), "backup.json")},
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn(b"Review backup import", preview.data)
+        self.assertIn(b"No missing sections", preview.data)
+        self.assertEqual(storage.load_data(), current)
+
+        merged_response = self.client.post(
+            "/import/confirm",
+            data={"backup_json": backup_json, "mode": "merge"},
+        )
+        self.assertEqual(merged_response.status_code, 302)
+        merged = storage.load_data()
+        self.assertEqual([item["entry_id"] for item in merged["workouts"]], ["same", "new"])
+        self.assertEqual(merged["routines"], [
+            {"id": "current-routine", "name": "Existing", "exercises": []},
+            {"id": "new-routine", "name": "New", "exercises": []},
+        ])
+        self.assertIn("Cable Fly", merged["exercises"]["Chest"])
+
+        self.client.post(
+            "/import",
+            data={"backup_file": (io.BytesIO(backup_json.encode()), "backup.json")},
+        )
+        replaced_response = self.client.post(
+            "/import/confirm",
+            data={"backup_json": backup_json, "mode": "replace"},
+        )
+        self.assertEqual(replaced_response.status_code, 302)
+        replaced = storage.load_data()
+        self.assertEqual([item["entry_id"] for item in replaced["workouts"]], ["same", "new"])
+        self.assertEqual([item["id"] for item in replaced["routines"]], ["backup-routine", "new-routine"])
+
+    def test_invalid_backup_preview_does_not_change_existing_data(self):
+        existing = storage.load_data()
+        existing["workouts"] = [{"entry_id": "keep"}]
+        storage.save_data(existing)
+        invalid_backups = [
+            b'{"workouts": [], "exercises": []}',
+            json.dumps({
+                "workouts": [{
+                    "date": "not-a-date", "muscle": "Chest",
+                    "exercise": "Bench", "weight": "50", "reps": "8",
+                }],
+                "exercises": DEFAULT_EXERCISES,
+            }).encode(),
+            b'{"workouts": [], "exercises": {}, "routines": [], "measurements": [], "goals": [], "extra": NaN}',
+        ]
+        for invalid_backup in invalid_backups:
+            response = self.client.post(
+                "/import",
+                data={"backup_file": (io.BytesIO(invalid_backup), "bad.json")},
+            )
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(storage.load_data(), existing)
+
+    def test_routine_link_is_saved_and_retained_when_editing_a_set(self):
+        routine_response = self.client.post(
+            "/save_routine",
+            data={
+                "mode": "builder",
+                "name": "Upper body",
+                "exercises_json": json.dumps([{
+                    "muscle": "Chest",
+                    "exercise": "Barbell Bench Press",
+                    "target_sets": "3",
+                    "target_reps": "8",
+                }]),
+            },
+        )
+        self.assertEqual(routine_response.status_code, 302)
+        routine_id = storage.load_data()["routines"][0]["id"]
+        self.log_set(session_id="routine-session", routine_id=routine_id)
+        self.assertEqual(storage.load_data()["workouts"][0]["routine_id"], routine_id)
+
+        self.client.post(
+            "/edit_workout/0",
+            data={
+                "date": "2026-10-12",
+                "session_name": "Upper body",
+                "muscle": "Chest",
+                "exercise": "Barbell Bench Press",
+                "weight": "65",
+                "unit": "kg",
+                "reps": "8",
+                "rpe": "7",
+            },
+        )
+        self.assertEqual(storage.load_data()["workouts"][0]["routine_id"], routine_id)
+        page = self.client.get("/?tab=routines")
+        self.assertIn(b"Compare sessions", page.data)
+        self.assertIn(routine_id.encode(), page.data)
+
     def test_edit_and_delete_workout_set(self):
         self.log_set()
         self.log_set(exercise="Incline Dumbbell Press")
@@ -685,6 +811,8 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Exercise Progress", response.data)
         self.assertIn(b"renderProgressChart", response.data)
+        self.assertIn(b"estimated-1rm", response.data)
+        self.assertIn(b"Weekly muscle volume", response.data)
         self.assertIn(b"Controlled tempo", response.data)
 
     def test_library_has_search_and_category_filters_and_set_notes_input(self):
@@ -695,6 +823,17 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b'id="library-no-results"', response.data)
         self.assertIn(b'name="notes"', response.data)
         self.assertIn(b"Set notes", response.data)
+
+    def test_workout_and_empty_state_ui_affordances_render(self):
+        response = self.client.get("/?tab=history")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="set-options"', response.data)
+        self.assertIn(b"Set details", response.data)
+        self.assertIn(b'id="session-duration" class="session-status"', response.data)
+        self.assertIn(b'id="timer-display" role="status" aria-live="polite"', response.data)
+        self.assertIn(b"Your workout history starts here", response.data)
+        self.assertIn(b'id="progress-empty-message"', response.data)
+        self.assertIn(b"Log a workout", response.data)
 
     def test_accent_color_picker_is_available(self):
         response = self.client.get("/")

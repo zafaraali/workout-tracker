@@ -98,6 +98,18 @@ function initializeWorkoutSession() {
     }
     idField.value = idField.value || sessionStorage.getItem("irontrack-session-id") || createSessionId();
     sessionStorage.setItem("irontrack-session-id", idField.value);
+    const savedRoutineId = sessionStorage.getItem("irontrack-routine-session-id") === idField.value
+        ? sessionStorage.getItem("irontrack-routine-id")
+        : "";
+    const routineId = window.activeSessionRoutineId || savedRoutineId || "";
+    document.getElementById("workout-routine-id").value = routineId;
+    if (routineId) {
+        sessionStorage.setItem("irontrack-routine-id", routineId);
+        sessionStorage.setItem("irontrack-routine-session-id", idField.value);
+    } else {
+        sessionStorage.removeItem("irontrack-routine-id");
+        sessionStorage.removeItem("irontrack-routine-session-id");
+    }
     nameField.value = sessionStorage.getItem("irontrack-session-name") || nameField.value || "Workout";
     document.getElementById("routine-session-id").value = idField.value;
     document.getElementById("routine-session-name").value = nameField.value;
@@ -108,7 +120,7 @@ function initializeWorkoutSession() {
     }
     if (window.activeSessionFinished) {
         document.getElementById("session-duration").textContent =
-            `Duration: ${formatElapsed(Number(document.getElementById("session-duration").dataset.elapsed || 0))} · Finished`;
+            `Finished · ${formatElapsed(Number(document.getElementById("session-duration").dataset.elapsed || 0))}`;
         document.getElementById("start-workout").classList.add("hidden");
     } else {
         updateSessionDuration();
@@ -122,6 +134,8 @@ function initializeWorkoutSession() {
             updateElapsedField(event);
             sessionStorage.removeItem("irontrack-routine-queue");
             sessionStorage.removeItem("irontrack-routine-index");
+            sessionStorage.removeItem("irontrack-routine-id");
+            sessionStorage.removeItem("irontrack-routine-session-id");
             sessionStorage.removeItem(`irontrack-session-start-${idField.value}`);
             sessionStorage.removeItem("irontrack-session-id");
             sessionStorage.removeItem("irontrack-session-name");
@@ -135,6 +149,9 @@ function initializeWorkoutSession() {
     document.getElementById("workout-date").addEventListener("change", () => {
         sessionStorage.removeItem("irontrack-routine-queue");
         sessionStorage.removeItem("irontrack-routine-index");
+        sessionStorage.removeItem("irontrack-routine-id");
+        sessionStorage.removeItem("irontrack-routine-session-id");
+        document.getElementById("workout-routine-id").value = "";
         document.getElementById("routine-target").classList.add("hidden");
         document.getElementById("next-routine-exercise").classList.add("hidden");
         sessionStorage.removeItem("irontrack-session-id");
@@ -193,13 +210,13 @@ function updateSessionDuration() {
     const start = Number(sessionStorage.getItem(`irontrack-session-start-${sessionId}`));
     const saved = Number(durationElement.dataset.elapsed || 0);
     if (!start) {
-        durationElement.textContent = `Duration: ${formatElapsed(saved)} · Not started`;
+        durationElement.textContent = `Not started · ${formatElapsed(saved)}`;
         const field = document.getElementById("elapsed-seconds");
         if (field) field.value = String(saved);
         return;
     }
     const elapsed = Math.max(saved, Math.floor((Date.now() - start) / 1000));
-    durationElement.textContent = `Duration: ${formatElapsed(elapsed)}`;
+    durationElement.textContent = `In progress · ${formatElapsed(elapsed)}`;
     const field = document.getElementById("elapsed-seconds");
     if (field) field.value = String(elapsed);
 }
@@ -216,6 +233,9 @@ function formatElapsed(seconds) {
 function startNewWorkoutSession() {
     sessionStorage.removeItem("irontrack-routine-queue");
     sessionStorage.removeItem("irontrack-routine-index");
+    sessionStorage.removeItem("irontrack-routine-id");
+    sessionStorage.removeItem("irontrack-routine-session-id");
+    document.getElementById("workout-routine-id").value = "";
     document.getElementById("routine-target").classList.add("hidden");
     document.getElementById("next-routine-exercise").classList.add("hidden");
     document.getElementById("session-id").value = createSessionId();
@@ -277,6 +297,7 @@ function renderProgressChart() {
         weight: "Best weight (kg)",
         reps: "Best reps",
         volume: "Volume (kg x reps)",
+        "estimated-1rm": "Estimated 1RM (kg, Epley estimate)",
         "cardio-distance": "Distance (km)",
         "cardio-duration": "Duration (minutes)",
     }[metric];
@@ -286,7 +307,14 @@ function renderProgressChart() {
     const cardioMetric = metric.startsWith("cardio-");
     const records = (window.progressData || []).filter(
         (entry) => entry.exercise === exercise
-            && (cardioMetric ? entry.set_type === "cardio" : entry.set_type !== "cardio")
+            && (cardioMetric
+                ? entry.set_type === "cardio"
+                : entry.set_type !== "cardio"
+                    && (metric !== "estimated-1rm"
+                        || (entry.set_type !== "warmup"
+                            && Number(entry.weight) > 0
+                            && Number(entry.reps) >= 1
+                            && Number(entry.reps) <= 15)))
     );
     const cutoff = range === "all"
         ? null
@@ -322,6 +350,10 @@ function renderProgressChart() {
                 point.value = Math.max(point.value, weight);
             } else if (metric === "reps") {
                 point.value = Math.max(point.value, reps);
+            } else if (metric === "estimated-1rm") {
+                if (weight > 0 && reps >= 1 && reps <= 15) {
+                    point.value = Math.max(point.value, weight * (1 + reps / 30));
+                }
             } else {
                 point.value += weight * reps;
             }
@@ -336,6 +368,12 @@ function renderProgressChart() {
 
     if (!points.length) {
         emptyMessage.classList.remove("hidden");
+        const message = document.getElementById("progress-empty-message");
+        if (message) {
+            message.textContent = (window.progressData || []).length
+                ? "No records match this exercise, metric, and date range. Try another exercise or range, or log another set."
+                : "Log your first set to start building exercise trends and personal records.";
+        }
         summary.textContent = "";
         document.getElementById("progress-chart-data").replaceChildren();
         return;
@@ -402,6 +440,85 @@ function renderProgressChart() {
         item.textContent = `${point.date}: ${Number(point.value.toFixed(1))} ${metricLabel}`;
         dataList.append(item);
     });
+}
+
+function renderMuscleVolumeChart() {
+    const chart = document.getElementById("muscle-volume-chart");
+    const categorySelect = document.getElementById("muscle-volume-category");
+    const summary = document.getElementById("muscle-volume-summary");
+    const dataList = document.getElementById("muscle-volume-data");
+    if (!chart || !categorySelect || !summary || !dataList) return;
+
+    const category = categorySelect.value;
+    const today = new Date();
+    const currentMonday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    currentMonday.setUTCDate(currentMonday.getUTCDate() - ((currentMonday.getUTCDay() + 6) % 7));
+    const weeks = Array.from({length: 8}, (_, index) => {
+        const start = new Date(currentMonday);
+        start.setUTCDate(start.getUTCDate() - (7 * (7 - index)));
+        return {start, key: start.toISOString().slice(0, 10), volume: 0};
+    });
+    const weekByKey = new Map(weeks.map((week) => [week.key, week]));
+    (window.progressData || []).forEach((entry) => {
+        if (entry.muscle !== category || !["working", "drop", "failure"].includes(entry.set_type || "working")) return;
+        const date = new Date(`${entry.date}T00:00:00Z`);
+        if (!Number.isFinite(date.getTime())) return;
+        const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+        monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+        const bucket = weekByKey.get(monday.toISOString().slice(0, 10));
+        const weight = Number(entry.weight) * (entry.unit === "lb" ? 0.45359237 : 1);
+        const reps = Number(entry.reps);
+        if (bucket && Number.isFinite(weight) && Number.isFinite(reps)) bucket.volume += weight * reps;
+    });
+
+    chart.replaceChildren();
+    dataList.replaceChildren();
+    const svgNamespace = "http://www.w3.org/2000/svg";
+    const left = 60;
+    const top = 25;
+    const chartWidth = 720;
+    const chartHeight = 210;
+    const bottom = top + chartHeight;
+    const maxVolume = Math.max(...weeks.map((week) => week.volume), 1);
+    for (let tick = 0; tick <= 4; tick += 1) {
+        const y = bottom - chartHeight * tick / 4;
+        const line = document.createElementNS(svgNamespace, "line");
+        line.setAttribute("x1", String(left));
+        line.setAttribute("x2", String(left + chartWidth));
+        line.setAttribute("y1", String(y));
+        line.setAttribute("y2", String(y));
+        line.setAttribute("class", "chart-gridline");
+        chart.append(line);
+    }
+    const slot = chartWidth / weeks.length;
+    weeks.forEach((week, index) => {
+        const height = week.volume / maxVolume * chartHeight;
+        const bar = document.createElementNS(svgNamespace, "rect");
+        bar.setAttribute("x", String(left + index * slot + slot * 0.2));
+        bar.setAttribute("y", String(bottom - height));
+        bar.setAttribute("width", String(slot * 0.6));
+        bar.setAttribute("height", String(height));
+        bar.setAttribute("rx", "4");
+        bar.setAttribute("class", "chart-point");
+        chart.append(bar);
+        const label = document.createElementNS(svgNamespace, "text");
+        label.setAttribute("x", String(left + index * slot + slot / 2));
+        label.setAttribute("y", String(bottom + 25));
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("class", "chart-label");
+        label.textContent = week.key.slice(5);
+        chart.append(label);
+        const item = document.createElement("li");
+        item.textContent = `Week starting ${week.key}: ${week.volume.toFixed(1)} kg × reps`;
+        dataList.append(item);
+    });
+    const thisWeek = weeks[7].volume;
+    const previousWeek = weeks[6].volume;
+    const difference = thisWeek - previousWeek;
+    const comparison = previousWeek
+        ? `${difference >= 0 ? "+" : ""}${((difference / previousWeek) * 100).toFixed(1)}% vs last week`
+        : "No prior-week volume to compare";
+    summary.textContent = `${category}: this week ${thisWeek.toFixed(1)} kg × reps; last week ${previousWeek.toFixed(1)} kg × reps (${comparison}). Eight weekly totals are listed below.`;
 }
 
 function renderPersonalRecords(exercise) {
@@ -531,11 +648,24 @@ function toggleCardioFields() {
     const cardio = document.getElementById("set-type").value === "cardio";
     document.getElementById("strength-fields").classList.toggle("hidden", cardio);
     document.getElementById("cardio-fields").classList.toggle("hidden", !cardio);
+    if (cardio) document.querySelector(".set-options").open = true;
     ["set-weight", "set-reps", "set-rpe"].forEach((id) => {
         document.getElementById(id).required = !cardio;
     });
     document.getElementById("weight-unit").disabled = cardio;
+    updateLoggerSetSummary();
     applyRestPresetForCurrentSelection();
+}
+
+function updateLoggerSetSummary() {
+    const summary = document.getElementById("logger-set-type");
+    if (!summary) return;
+    const setType = document.getElementById("set-type").selectedOptions[0].textContent;
+    const unit = document.getElementById("weight-unit").value;
+    const rpe = document.getElementById("set-rpe").value;
+    summary.textContent = setType === "Cardio"
+        ? "Cardio · distance or duration"
+        : `${setType} · ${unit} · RPE ${rpe}`;
 }
 
 function showExerciseHistory() {
@@ -797,6 +927,9 @@ function loadRoutine(routineId) {
     sessionStorage.setItem("irontrack-routine-index", "0");
     const sessionId = createSessionId();
     document.getElementById("session-id").value = sessionId;
+    document.getElementById("workout-routine-id").value = routine.id;
+    sessionStorage.setItem("irontrack-routine-id", routine.id);
+    sessionStorage.setItem("irontrack-routine-session-id", sessionId);
     resetWorkoutClock();
     startWorkoutClock();
     document.getElementById("routine-session-id").value = sessionId;
@@ -1011,6 +1144,86 @@ function initializeRoutineEditors() {
             }
             form.querySelector('[name="exercises_json"]').value = JSON.stringify(exercises);
         });
+    });
+}
+
+function renderRoutineComparison(routineId) {
+    const routine = (window.routinesData || []).find((item) => item.id === routineId);
+    const panel = [...document.querySelectorAll(".routine-comparison")]
+        .find((item) => item.dataset.routineId === routineId);
+    if (!routine || !panel) return;
+    const sessions = new Map();
+    (window.progressData || []).forEach((entry) => {
+        const belongs = entry.routine_id === routineId
+            || String(entry.session_name || "").trim().toLocaleLowerCase()
+                === String(routine.name || "").trim().toLocaleLowerCase();
+        if (!belongs || entry.set_type === "cardio") return;
+        const sessionKey = entry.session_id || `${entry.date}\u0000${entry.session_name || ""}`;
+        const session = sessions.get(sessionKey) || {date: entry.date, sets: []};
+        session.sets.push(entry);
+        if (entry.date > session.date) session.date = entry.date;
+        sessions.set(sessionKey, session);
+    });
+    const recent = [...sessions.values()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2);
+    panel.replaceChildren();
+    panel.classList.remove("hidden");
+    if (!recent.length) {
+        panel.textContent = "No logged sessions match this routine yet. New routine workouts will be linked automatically.";
+        return;
+    }
+    const heading = document.createElement("p");
+    heading.className = "mb-2 font-medium";
+    heading.textContent = recent.length > 1
+        ? `Comparing ${recent[0].date} with ${recent[1].date}`
+        : `Latest session: ${recent[0].date} · No earlier session to compare`;
+    panel.append(heading);
+    routine.exercises.forEach((planned) => {
+        const measures = (session) => {
+            const sets = session.sets.filter((entry) => entry.exercise === planned.exercise);
+            const warmupSets = sets.filter((entry) => entry.set_type === "warmup");
+            const workingSets = sets.filter((entry) => entry.set_type !== "warmup");
+            const workingVolume = workingSets
+                .reduce((sum, entry) => sum + Number(entry.weight || 0)
+                    * (entry.unit === "lb" ? 0.45359237 : 1) * Number(entry.reps || 0), 0);
+            const averageWeight = workingSets.length
+                ? workingSets.reduce((sum, entry) => sum + Number(entry.weight || 0)
+                    * (entry.unit === "lb" ? 0.45359237 : 1), 0) / workingSets.length
+                : 0;
+            const averageReps = workingSets.length
+                ? workingSets.reduce((sum, entry) => sum + Number(entry.reps || 0), 0) / workingSets.length
+                : 0;
+            return {
+                completedWarmups: warmupSets.length,
+                plannedWarmups: Number(planned.warmup_sets || 0),
+                completedWorking: workingSets.length,
+                plannedWorking: Number(planned.target_sets || 0),
+                workingVolume,
+                averageWeight,
+                averageReps,
+            };
+        };
+        const latest = measures(recent[0]);
+        const line = document.createElement("p");
+        const previous = recent.length > 1 ? measures(recent[1]) : null;
+        let text = `${planned.exercise}: warm-up ${latest.completedWarmups}/${latest.plannedWarmups}, working ${latest.completedWorking}/${latest.plannedWorking} sets · avg ${latest.averageWeight.toFixed(1)} kg × ${latest.averageReps.toFixed(1)} reps · ${latest.workingVolume.toFixed(1)} kg × reps`;
+        if (previous) {
+            const delta = latest.workingVolume - previous.workingVolume;
+            text += `; previous warm-up ${previous.completedWarmups}/${previous.plannedWarmups}, working ${previous.completedWorking}/${previous.plannedWorking} sets, avg ${previous.averageWeight.toFixed(1)} kg × ${previous.averageReps.toFixed(1)} reps; volume ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg × reps`;
+        }
+        line.textContent = text;
+        panel.append(line);
+    });
+}
+
+function initializeRoutineComparisons() {
+    document.querySelectorAll(".routine-comparison-toggle").forEach((button) => {
+        button.addEventListener("click", () => renderRoutineComparison(button.dataset.routineId));
+    });
+}
+
+function initializeRoutineStarts() {
+    document.querySelectorAll(".start-routine-button").forEach((button) => {
+        button.addEventListener("click", () => loadRoutine(button.dataset.startRoutine));
     });
 }
 
@@ -1348,6 +1561,9 @@ function initializeRestPresets() {
     autoStart.addEventListener("change", () => {
         localStorage.setItem("irontrack-auto-start-rest", String(autoStart.checked));
     });
+    document.getElementById("set-type").addEventListener("change", updateLoggerSetSummary);
+    document.getElementById("weight-unit").addEventListener("change", updateLoggerSetSummary);
+    document.getElementById("set-rpe").addEventListener("input", updateLoggerSetSummary);
     document.getElementById("set-type-rest-preset").addEventListener("change", () => {
         const timer = document.getElementById("timer-duration");
         ensureTimerOption(timer, select.value);
@@ -1470,6 +1686,7 @@ function startTimer() {
     const startButton = document.getElementById("timer-start");
     const stopButton = document.getElementById("timer-stop");
     display.classList.remove("hidden");
+    display.textContent = "Timer starting";
     startButton.disabled = true;
     stopButton.disabled = false;
 

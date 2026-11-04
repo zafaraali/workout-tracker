@@ -22,6 +22,7 @@ class WorkoutEntry(TypedDict):
     elapsed_seconds: NotRequired[int]
     superset_group: NotRequired[str]
     finished: NotRequired[bool]
+    routine_id: NotRequired[str]
 
 class RoutineExercise(TypedDict):
     muscle: str

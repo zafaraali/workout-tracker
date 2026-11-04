@@ -48,6 +48,164 @@ def _valid_import(data: object) -> bool:
     )
 
 
+def _reject_json_constant(value):
+    raise ValueError(f"Unsupported JSON constant: {value}")
+
+
+def _merge_records(existing, incoming, identity, fallback=None):
+    merged = list(existing)
+    key_for = lambda value: json.dumps(value, sort_keys=True) if value else None
+    seen = {key_for(identity(item)) for item in existing if identity(item)}
+    fallback_seen = {
+        key_for(fallback(item)) for item in existing
+        if fallback and fallback(item) is not None
+    }
+    for item in incoming:
+        key = key_for(identity(item))
+        alternate_key = key_for(fallback(item)) if fallback else None
+        if (key and key in seen) or (
+            alternate_key is not None and alternate_key in fallback_seen
+        ):
+            continue
+        merged.append(item)
+        if key:
+            seen.add(key)
+        if alternate_key is not None:
+            fallback_seen.add(alternate_key)
+    return merged
+
+
+def _merge_backup_data(existing, imported):
+    merged_exercises = {category: list(names) for category, names in existing["exercises"].items()}
+    category_names = {category.casefold(): category for category in merged_exercises}
+    for category, names in imported["exercises"].items():
+        target_category = category_names.get(category.casefold())
+        if target_category is None:
+            target_category = category
+            category_names[category.casefold()] = category
+            merged_exercises[target_category] = []
+        seen_exercises = {name.casefold() for name in merged_exercises[target_category]}
+        for name in names:
+            if name.casefold() not in seen_exercises:
+                merged_exercises[target_category].append(name)
+                seen_exercises.add(name.casefold())
+
+    return {
+        "workouts": _merge_records(
+            existing["workouts"], imported["workouts"], lambda item: item.get("entry_id")
+        ),
+        "exercises": merged_exercises,
+        "routines": _merge_records(
+            existing["routines"],
+            imported["routines"],
+            lambda item: item.get("id"),
+            lambda item: item.get("name", "").strip().casefold()
+            if isinstance(item.get("name"), str) else None,
+        ),
+        "measurements": _merge_records(
+            existing["measurements"],
+            imported["measurements"],
+            lambda item: item.get("id"),
+        ),
+        "goals": _merge_records(
+            existing["goals"],
+            imported["goals"],
+            lambda item: item.get("id"),
+            lambda item: (
+                item.get("metric"), item.get("target"), item.get("unit"),
+                item.get("direction"), item.get("target_date"),
+            ),
+        ),
+    }
+
+
+def _validated_backup_data(imported):
+    if not _valid_import(imported):
+        raise ValueError("Invalid backup structure.")
+    data = validate_data(imported)
+    for workout in data["workouts"]:
+        workout_date = workout.get("date")
+        datetime.date.fromisoformat(workout_date)
+        if (
+            not isinstance(workout.get("muscle"), str)
+            or not workout["muscle"].strip()
+            or not isinstance(workout.get("exercise"), str)
+            or not workout["exercise"].strip()
+        ):
+            raise ValueError("Workout entries must include a category and exercise.")
+        set_type = workout.setdefault("set_type", "working")
+        unit = workout.setdefault("unit", "kg")
+        if set_type not in {"working", "warmup", "drop", "failure", "cardio"} or unit not in {"kg", "lb"}:
+            raise ValueError("Workout entries contain an unsupported set type or unit.")
+        if set_type == "cardio":
+            distance = workout.get("distance", "")
+            duration = workout.get("duration", "")
+            if distance not in ("", None):
+                if not math.isfinite(float(distance)) or float(distance) < 0:
+                    raise ValueError("Cardio distance must be a non-negative number.")
+            if duration not in ("", None) and int(duration) < 1:
+                raise ValueError("Cardio duration must be positive.")
+            if not distance and not duration:
+                raise ValueError("Cardio entries must include distance or duration.")
+        else:
+            weight = float(workout.get("weight"))
+            reps = int(workout.get("reps"))
+            if not math.isfinite(weight) or weight < 0 or reps < 1:
+                raise ValueError("Strength entries contain an invalid weight or rep count.")
+        for field in ("entry_id", "session_id", "session_name"):
+            if field in workout and not isinstance(workout[field], str):
+                raise ValueError(f"Workout {field} values must be text.")
+
+    for routine in data["routines"]:
+        if (
+            not isinstance(routine.get("name"), str)
+            or not routine["name"].strip()
+            or not isinstance(routine.get("exercises", []), list)
+            or not all(isinstance(item, dict) for item in routine.get("exercises", []))
+        ):
+            raise ValueError("Routines must have a name and an exercise list.")
+        if any(
+            not isinstance(item.get("muscle"), str)
+            or not isinstance(item.get("exercise"), str)
+            for item in routine.get("exercises", [])
+        ):
+            raise ValueError("Routine exercises must include a category and exercise.")
+        if "id" in routine and not isinstance(routine["id"], str):
+            raise ValueError("Routine IDs must be text.")
+
+    for measurement in data["measurements"]:
+        if not isinstance(measurement.get("date"), str):
+            raise ValueError("Measurements must include a date.")
+        datetime.date.fromisoformat(measurement["date"])
+        if measurement.get("unit", "kg") not in {"kg", "lb"}:
+            raise ValueError("Measurement weight units must be kg or lb.")
+        for field in ("body_weight", "waist", "chest", "hips"):
+            value = measurement.get(field)
+            if value not in ("", None):
+                number = float(value)
+                if not math.isfinite(number) or number < 0:
+                    raise ValueError(f"Measurement {field} must be a non-negative number.")
+
+    for goal in data["goals"]:
+        metric = goal.get("metric")
+        unit = goal.get("unit")
+        direction = goal.get("direction")
+        if (
+            metric not in {"body_weight", "waist", "chest", "hips"}
+            or (metric == "body_weight" and unit not in {"kg", "lb"})
+            or (metric != "body_weight" and unit != "cm")
+            or direction not in {"increase", "decrease"}
+            or (metric != "body_weight" and direction == "increase")
+            or not math.isfinite(float(goal.get("target")))
+            or float(goal["target"]) <= 0
+        ):
+            raise ValueError("Goals contain an unsupported metric or target.")
+        target_date = goal.get("target_date", "")
+        if target_date:
+            datetime.date.fromisoformat(target_date)
+    return data
+
+
 def _validated_workout(form, exercises) -> WorkoutEntry:
     workout_date = form.get("date", "").strip()
     category = form.get("muscle", "").strip()
@@ -341,6 +499,10 @@ def index():
         for index, workout in enumerate(data["workouts"])
         if active_session_id and workout.get("session_id") == active_session_id
     ]
+    active_session_routine_id = next(
+        (item["workout"].get("routine_id", "") for item in active_session_sets if item["workout"].get("routine_id")),
+        "",
+    )
     active_exercises = {}
     for item in active_session_sets:
         exercise_name = item["workout"].get("exercise", "Exercise")
@@ -363,6 +525,7 @@ def index():
         previous_month=(month_date - datetime.timedelta(days=1)).strftime("%Y-%m"),
         next_month=(month_date.replace(day=28) + datetime.timedelta(days=4)).replace(day=1).strftime("%Y-%m"),
         active_session_id=active_session_id,
+        active_session_routine_id=active_session_routine_id,
         active_session_sets=active_session_sets,
         active_session_groups=[
             {
@@ -413,11 +576,21 @@ def log_workout():
     entry["session_id"] = request.form.get("session_id", "").strip() or str(uuid.uuid4())
     entry["session_name"] = request.form.get("session_name", "").strip()[:100] or "Workout"
     entry["entry_id"] = entry_id or str(uuid.uuid4())
+    routine_id = request.form.get("routine_id", "").strip()
+    routine_missing = bool(
+        routine_id and not any(routine.get("id") == routine_id for routine in data["routines"])
+    )
+    if routine_id and not routine_missing:
+        entry["routine_id"] = routine_id
     data["workouts"].append(entry)
     save_data(data)
     if request.headers.get("X-Offline-Sync"):
         return jsonify(ok=True), 201
-    flash("Workout set recorded.", "success")
+    flash(
+        "Workout set recorded, but its routine was removed and could not be linked."
+        if routine_missing else "Workout set recorded.",
+        "success",
+    )
     return redirect(
         url_for(
             "main.index",
@@ -448,6 +621,8 @@ def edit_workout(index):
     updated["elapsed_seconds"] = previous.get("elapsed_seconds", 0)
     updated["superset_group"] = previous.get("superset_group", "")
     updated["finished"] = previous.get("finished", False)
+    if previous.get("routine_id"):
+        updated["routine_id"] = previous["routine_id"]
     data["workouts"][index] = updated
 
     if previous.get("session_id"):
@@ -1286,22 +1461,51 @@ def import_backup():
         return redirect(url_for("main.index", tab="history"))
 
     try:
-        imported = json.load(file)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        flash("The selected file is not valid JSON.", "error")
+        imported = json.load(file, parse_constant=_reject_json_constant)
+        validated_data = _validated_backup_data(imported)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError, OverflowError):
+        flash("The backup is invalid. No data was changed.", "error")
         return redirect(url_for("main.index", tab="history"))
 
-    if not _valid_import(imported):
-        flash("The backup must contain workout and exercise lists in the expected format.", "error")
+    current = load_data()
+    merged = _merge_backup_data(current, validated_data)
+    compatibility_notes = [
+        f"This older backup has no {label}; the missing section will be treated as empty when replacing."
+        for key, label in (
+            ("routines", "routine list"),
+            ("measurements", "measurement list"),
+            ("goals", "goal list"),
+        )
+        if key not in imported
+    ]
+    return render_template(
+        "backup_preview.html",
+        imported=validated_data,
+        current=current,
+        merged=merged,
+        compatibility_notes=compatibility_notes,
+        backup_json=json.dumps(validated_data),
+    )
+
+
+@main.route("/import/confirm", methods=["POST"])
+def confirm_backup_import():
+    try:
+        imported_json = request.form.get("backup_json", "")
+        imported_value = json.loads(imported_json, parse_constant=_reject_json_constant)
+        imported = _validated_backup_data(imported_value)
+        mode = request.form.get("mode")
+        if mode == "merge":
+            imported = _merge_backup_data(load_data(), imported)
+        elif mode != "replace":
+            raise ValueError("Choose whether to merge or replace.")
+    except (json.JSONDecodeError, ValueError, TypeError, OverflowError):
+        flash("The backup preview is invalid or expired. No data was changed.", "error")
         return redirect(url_for("main.index", tab="history"))
 
-    validated_data: WorkoutData = {
-        "workouts": imported["workouts"],
-        "exercises": imported["exercises"],
-        "routines": imported.get("routines", []),
-        "measurements": imported.get("measurements", []),
-        "goals": imported.get("goals", []),
-    }
-    save_data(validated_data)
-    flash("Backup restored.", "success")
+    save_data(imported)
+    flash(
+        "Backup merged with current data." if mode == "merge" else "Backup restored, replacing current data.",
+        "success",
+    )
     return redirect(url_for("main.index", tab="history"))
