@@ -1,0 +1,139 @@
+html:not(.dark) body {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+
+html:not(.dark) .bg-slate-950 {
+    background-color: #f8fafc;
+}
+
+html:not(.dark) .bg-slate-900 {
+    background-color: #ffffff;
+}
+
+html:not(.dark) .bg-slate-800 {
+    background-color: #e2e8f0;
+}
+
+html:not(.dark) .hover\:bg-slate-700:hover {
+    background-color: #cbd5e1;
+}
+
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-700 {
+    border-color: #cbd5e1;
+}
+
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-200 {
+    color: #0f172a;
+}
+
+html:not(.dark) .text-slate-300 {
+    color: #334155;
+}
+
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-slate-500 {
+    color: #64748b;
+}
+
+html:not(.dark) .text-emerald-300 {
+    color: #047857;
+}
+
+html:not(.dark) .bg-emerald-950 {
+    background-color: #d1fae5;
+}
+
+html:not(.dark) .border-emerald-800 {
+    border-color: #6ee7b7;
+}
+
+html:not(.dark) .border-emerald-700 {
+    border-color: #34d399;
+}
+
+html:not(.dark) .text-emerald-300 {
+    color: #047857;
+}
+
+html:not(.dark) .bg-rose-950 {
+    background-color: #ffe4e6;
+}
+
+html:not(.dark) .border-rose-800 {
+    border-color: #fda4af;
+}
+
+.field-label {
+    display: block;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+html:not(.dark) .field-label {
+    color: #475569;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    margin-top: 0.35rem;
+    border: 1px solid #1e293b;
+    border-radius: 0.75rem;
+    background-color: #020617;
+    color: #e2e8f0;
+    padding: 0.625rem 0.875rem;
+}
+
+.date-picker-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+}
+
+.date-picker-control .form-control {
+    flex: 1;
+    min-width: 0;
+    margin-top: 0;
+}
+
+.date-picker-button {
+    flex: none;
+    border: 1px solid #1e293b;
+    border-radius: 0.75rem;
+    background-color: #1e293b;
+    padding: 0.625rem 0.875rem;
+    cursor: pointer;
+}
+
+.date-picker-button:hover {
+    background-color: #334155;
+}
+
+html:not(.dark) .form-control {
+    border-color: #cbd5e1;
+    background-color: #ffffff;
+    color: #0f172a;
+}
+
+html:not(.dark) .date-picker-button {
+    border-color: #cbd5e1;
+    background-color: #e2e8f0;
+}
+
+html:not(.dark) .date-picker-button:hover {
+    background-color: #cbd5e1;
+}
+
+.tab-button.text-slate-400 {
+    color: #94a3b8;
+}
+
+html:not(.dark) .tab-button.text-slate-400 {
+    color: #64748b;
+}

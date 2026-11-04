@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IronTrack Gym Logger</title>
+    <script>
+        if (localStorage.getItem("irontrack-theme") === "light") {
+            document.documentElement.classList.remove("dark");
+        }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { brand: { 500: "#10b981", 600: "#059669" } } } }
+        };
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
+    <header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🏋️‍♂️</span>
+                <h1 class="text-xl font-bold tracking-tight">IronTrack</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="active-timer" class="hidden rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-1.5 font-mono text-sm text-emerald-300" role="status" aria-live="polite"></span>
+                <button type="button" onclick="toggleDarkMode()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
+                    <span id="theme-label">☀️ Light mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="p-4 rounded-xl border text-sm {{ 'bg-emerald-950 border-emerald-800 text-emerald-300' if category == 'success' else 'bg-rose-950 border-rose-800 text-rose-300' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <nav class="flex space-x-2 border-b border-slate-800 pb-2">
+            <button onclick="switchTab('log')" id="tab-log" class="tab-button px-4 py-2 rounded-lg font-medium transition">Log Workout</button>
+            <button onclick="switchTab('library')" id="tab-library" class="tab-button px-4 py-2 rounded-lg font-medium transition">Exercises</button>
+            <button onclick="switchTab('history')" id="tab-history" class="tab-button px-4 py-2 rounded-lg font-medium transition">History &amp; Backup</button>
+        </nav>
+
+        <section id="section-log" class="tab-panel space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <h2 class="text-lg font-semibold mb-4 text-emerald-500">Record Exercise Set</h2>
+                <form action="{{ url_for('main.log_workout') }}" method="POST" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="field-label">
+                            <label for="workout-date">Workout date</label>
+                            <div class="date-picker-control">
+                                <input type="date" id="workout-date" name="date" required value="{{ today }}" class="form-control">
+                                <button type="button" class="date-picker-button" onclick="openDatePicker('workout-date')" aria-label="Open workout date picker">📅</button>
+                            </div>
+                        </div>
+                        <label class="field-label">Muscle group
+                            <select name="muscle" id="muscle-select" onchange="updateExercises()" required class="form-control">
+                                {% for group in exercises.keys() %}
+                                <option value="{{ group }}">{{ group }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    <label class="field-label">Exercise
+                        <select name="exercise" id="exercise-select" required class="form-control"></select>
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <label class="field-label">Weight
+                            <input type="number" step="0.5" min="0" name="weight" required value="0" class="form-control">
+                        </label>
+                        <label class="field-label">Reps
+                            <input type="number" min="1" name="reps" required value="10" class="form-control">
+                        </label>
+                        <label class="field-label">RPE / intensity
+                            <input type="number" min="1" max="10" name="rpe" required value="7" class="form-control">
+                        </label>
+                    </div>
+                    <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition">Log Set</button>
+                </form>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <h3 class="text-lg font-semibold mb-2 text-emerald-500">⏱️ Rest Timer</h3>
+                <div class="flex items-center space-x-4">
+                    <select id="timer-duration" class="form-control w-auto">
+                        <option value="30">30 Seconds</option>
+                        <option value="60" selected>60 Seconds</option>
+                        <option value="90">90 Seconds</option>
+                        <option value="120">120 Seconds</option>
+                    </select>
+                    <button type="button" id="timer-start" onclick="startTimer()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-medium transition">Start Timer</button>
+                    <button type="button" id="timer-stop" onclick="stopTimer()" disabled class="px-6 py-2 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition">Stop Timer</button>
+                </div>
+                <div id="timer-display" class="mt-4 text-2xl font-mono text-emerald-500 hidden">00:00</div>
+            </div>
+        </section>
+
+        <section id="section-library" class="tab-panel space-y-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.6fr)] gap-6 items-start">
+                <div class="space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <h2 class="text-lg font-semibold text-emerald-500">Add Exercise</h2>
+                        <form action="{{ url_for('main.add_library_exercise') }}" method="POST" class="space-y-4">
+                            <label class="field-label">Category
+                                <select name="muscle" required class="form-control">
+                                    {% for group in exercises.keys() %}<option value="{{ group }}">{{ group }}</option>{% endfor %}
+                                </select>
+                            </label>
+                            <label class="field-label">Exercise name
+                                <input type="text" name="exercise_name" required maxlength="100" placeholder="e.g., Cable Crossovers" class="form-control">
+                            </label>
+                            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl transition">Add Exercise</button>
+                        </form>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <h2 class="text-lg font-semibold text-emerald-500">Manage Categories</h2>
+                        <form action="{{ url_for('main.add_category') }}" method="POST" class="flex gap-2">
+                            <input type="text" name="category" required maxlength="60" placeholder="New category" class="form-control">
+                            <button type="submit" class="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Add</button>
+                        </form>
+                        <div class="space-y-2">
+                            {% for group, ex_list in exercises.items() %}
+                            <div class="flex justify-between items-center gap-3 border border-slate-800 rounded-xl p-3 bg-slate-950">
+                                <span class="font-medium">{{ group }} <span class="text-slate-400 text-sm">({{ ex_list|length }})</span></span>
+                                {% if not ex_list %}
+                                <form action="{{ url_for('main.delete_category') }}" method="POST" onsubmit="return confirm('Delete this empty category?')">
+                                    <input type="hidden" name="category" value="{{ group }}">
+                                    <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                    <h2 class="text-lg font-semibold text-emerald-500">Exercise Library</h2>
+                    <div class="space-y-5">
+                        {% for group, ex_list in exercises.items() %}
+                        <div>
+                            <h3 class="font-semibold text-emerald-500 mb-2">{{ group }}</h3>
+                            {% if ex_list %}
+                            <div class="space-y-2">
+                                {% for exercise in ex_list %}
+                                <div class="border border-slate-800 rounded-xl p-3 bg-slate-950 space-y-2">
+                                    <form action="{{ url_for('main.update_library_exercise') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+                                        <input type="hidden" name="old_muscle" value="{{ group }}">
+                                        <input type="hidden" name="old_name" value="{{ exercise }}">
+                                        <input type="text" name="exercise_name" value="{{ exercise }}" required maxlength="100" aria-label="Exercise name" class="form-control">
+                                        <select name="muscle" aria-label="Exercise category" class="form-control">
+                                            {% for category in exercises.keys() %}
+                                            <option value="{{ category }}" {% if category == group %}selected{% endif %}>{{ category }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save</button>
+                                    </form>
+                                    <form action="{{ url_for('main.delete_library_exercise') }}" method="POST" onsubmit="return confirm('Delete {{ exercise }} from the library?')">
+                                        <input type="hidden" name="muscle" value="{{ group }}">
+                                        <input type="hidden" name="exercise_name" value="{{ exercise }}">
+                                        <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete exercise</button>
+                                    </form>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}<p class="text-sm text-slate-400">No exercises in this category.</p>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-history" class="tab-panel space-y-6 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-3">
+                    <h2 class="text-lg font-semibold text-emerald-500">Workout Logs</h2>
+                    <a href="{{ url_for('main.export_backup') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">📥 Export Backup</a>
+                </div>
+                <form action="{{ url_for('main.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="tab" value="history">
+                    <div class="field-label">
+                        <label for="history-date">Show workouts for</label>
+                        <div class="date-picker-control">
+                            <input type="date" id="history-date" name="date" value="{{ selected_date }}" class="form-control">
+                            <button type="button" class="date-picker-button" onclick="openDatePicker('history-date')" aria-label="Open history date picker">📅</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Filter</button>
+                    {% if selected_date %}<a href="{{ url_for('main.index', tab='history') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl">Show all</a>{% endif %}
+                </form>
+                <form action="{{ url_for('main.import_backup') }}" method="POST" enctype="multipart/form-data" class="p-4 border border-dashed border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                    <input type="file" name="backup_file" accept=".json,application/json" required class="text-sm text-slate-400">
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium">Restore Backup</button>
+                </form>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead><tr class="border-b border-slate-800 text-slate-400">
+                            <th class="p-3">Date</th><th class="p-3">Muscle</th><th class="p-3">Exercise</th>
+                            <th class="p-3">Weight</th><th class="p-3">Reps</th><th class="p-3">RPE</th>
+                        </tr></thead>
+                        <tbody class="divide-y divide-slate-800">
+                            {% for log in workouts|reverse %}
+                            <tr>
+                                <td class="p-3 text-slate-300">{{ log.date }}</td><td class="p-3 text-slate-300">{{ log.muscle }}</td>
+                                <td class="p-3 font-medium">{{ log.exercise }}</td><td class="p-3 text-slate-300">{{ log.weight }}</td>
+                                <td class="p-3 text-slate-300">{{ log.reps }}</td><td class="p-3 text-slate-300">{{ log.rpe }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="p-4 text-center text-slate-500">{% if selected_date %}No workout sets for this date.{% else %}No workout sets logged yet.{% endif %}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        window.exercisesData = {{ exercises|tojson }};
+        const initialTab = {{ selected_tab|tojson }};
+        updateExercises();
+        switchTab(["log", "library", "history"].includes(initialTab) ? initialTab : "log");
+    </script>
+</body>
+</html>

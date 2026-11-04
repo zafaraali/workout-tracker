@@ -1,0 +1,76 @@
+{
+    "workouts": [
+        {
+            "date": "2026-11-03",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "0",
+            "reps": "10",
+            "rpe": "7"
+        },
+        {
+            "date": "2026-11-03",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "0",
+            "reps": "10",
+            "rpe": "7"
+        },
+        {
+            "date": "2026-11-03",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "0",
+            "reps": "10",
+            "rpe": "7"
+        }
+    ],
+    "exercises": {
+        "Chest": [
+            "Barbell Bench Press",
+            "Incline Dumbbell Press",
+            "Push-ups",
+            "Chest press machine",
+            "Db press",
+            "Machine flys"
+        ],
+        "Back": [
+            "Pull-ups",
+            "Barbell Row",
+            "Lat Pulldown",
+            "Weighted pullups",
+            "Single arm cable rows",
+            "Single arm pulldowns",
+            "Single arm machine rows"
+        ],
+        "Legs": [
+            "Barbell Squat",
+            "Romanian Deadlift",
+            "Leg Press",
+            "Hack squats",
+            "Leg curls",
+            "Single leg ext",
+            "Seated Calf raises",
+            "Rdl",
+            "Horizontal leg press",
+            "Standing calf raises"
+        ],
+        "Shoulders": [
+            "Overhead Press",
+            "Lateral Raises",
+            "Db ohp",
+            "Cable lateral raises"
+        ],
+        "Arms": [
+            "Barbell Curl",
+            "Triceps Pushdown",
+            "Db curls"
+        ],
+        "Core": [
+            "Plank",
+            "Hanging Leg Raises",
+            "Ab crunch",
+            "Leg raises"
+        ]
+    }
+}
