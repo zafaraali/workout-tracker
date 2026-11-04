@@ -455,26 +455,32 @@
                     <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Filter</button>
                     {% if selected_date %}<a href="{{ url_for('main.index', tab='history') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl">Show all</a>{% endif %}
                 </form>
-                <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                    <div class="flex flex-wrap justify-between items-center gap-3">
-                        <h3 class="font-semibold text-emerald-500">{{ calendar_month }}</h3>
-                        <div class="flex gap-2">
-                            <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=previous_month) }}">←</a>
-                            <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm" href="{{ url_for('main.index', tab='history') }}">This month</a>
-                            <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=next_month) }}">→</a>
+                <details id="history-calendar" class="history-disclosure bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3" open>
+                    <summary class="history-disclosure-summary">
+                        <span>Activity calendar</span>
+                        <span class="history-disclosure-detail">{{ calendar_month }}</span>
+                    </summary>
+                    <div class="pt-3 space-y-3">
+                        <div class="flex flex-wrap justify-between items-center gap-3">
+                            <h3 class="font-semibold text-emerald-500">{{ calendar_month }}</h3>
+                            <div class="flex gap-2">
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=previous_month) }}" aria-label="Previous month">←</a>
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm" href="{{ url_for('main.index', tab='history') }}">This month</a>
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=next_month) }}" aria-label="Next month">→</a>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
+                            {% for weekday in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<div class="py-1">{{ weekday }}</div>{% endfor %}
+                            {% for day in calendar_days %}
+                                {% if day.date %}
+                                <a href="{{ url_for('main.index', tab='history', date=day.date, month=calendar_month_value) }}" class="calendar-day rounded-lg p-1 sm:p-2 {{ 'calendar-day-active' if day.count else '' }} {{ 'calendar-day-selected' if day.date == selected_date else '' }}" title="{{ day.count }} set(s)" aria-label="{{ day.date }}: {{ day.count }} set(s)">
+                                    <span>{{ day.day }}</span>{% if day.count %}<span class="calendar-day-count block text-[0.65rem]">{{ day.count }} sets</span>{% endif %}
+                                </a>
+                                {% else %}<div></div>{% endif %}
+                            {% endfor %}
                         </div>
                     </div>
-                    <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
-                        {% for weekday in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<div class="py-1">{{ weekday }}</div>{% endfor %}
-                        {% for day in calendar_days %}
-                            {% if day.date %}
-                            <a href="{{ url_for('main.index', tab='history', date=day.date, month=calendar_month_value) }}" class="calendar-day rounded-lg p-1 sm:p-2 {{ 'calendar-day-active' if day.count else '' }} {{ 'calendar-day-selected' if day.date == selected_date else '' }}" title="{{ day.count }} set(s)">
-                                <span>{{ day.day }}</span>{% if day.count %}<span class="block text-[0.65rem]">{{ day.count }} sets</span>{% endif %}
-                            </a>
-                            {% else %}<div></div>{% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
+                </details>
                 <form action="{{ url_for('main.import_backup') }}" method="POST" enctype="multipart/form-data" class="p-4 border border-dashed border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
                     <input type="file" name="backup_file" accept=".json,application/json" required class="text-sm text-slate-400">
                     <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium">Restore Backup</button>
@@ -486,16 +492,19 @@
                             <h3 class="font-semibold text-emerald-500">{{ group.name }} <span class="text-sm font-normal text-slate-400">· {{ group.date }}</span></h3>
                             <span class="text-sm text-slate-400">{{ group.sets|length }} set{% if group.sets|length != 1 %}s{% endif %}{% if group.duration %} · {{ '%02d'|format(group.duration // 60) }}:{{ '%02d'|format(group.duration % 60) }}{% endif %}</span>
                         </div>
-                        <form action="{{ url_for('main.duplicate_session') }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-800 pt-3">
-                            <input type="hidden" name="session_id" value="{{ group.id }}">
-                            <label class="field-label">Repeat workout on
-                                <input type="date" name="date" required value="{{ today }}" class="form-control">
-                            </label>
-                            <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Repeat workout</button>
-                        </form>
-                        <details class="border-t border-slate-800 pt-3">
-                            <summary class="cursor-pointer text-sm text-emerald-500 hover:text-emerald-400">Edit workout name or date</summary>
-                            <form action="{{ url_for('main.edit_session') }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <details class="history-workout-actions border-t border-slate-800 pt-3" open>
+                            <summary class="history-disclosure-summary">Workout actions <span class="history-disclosure-detail">Repeat, edit, or delete</span></summary>
+                            <div class="mt-3 space-y-3">
+                                <form action="{{ url_for('main.duplicate_session') }}" method="POST" class="history-repeat-form flex flex-wrap items-end gap-2">
+                                    <input type="hidden" name="session_id" value="{{ group.id }}">
+                                    <label class="field-label">Repeat workout on
+                                        <input type="date" name="date" required value="{{ today }}" class="form-control">
+                                    </label>
+                                    <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Repeat workout</button>
+                                </form>
+                                <details class="border-t border-slate-800 pt-3">
+                                    <summary class="cursor-pointer text-sm text-emerald-500 hover:text-emerald-400">Edit workout name or date</summary>
+                                    <form action="{{ url_for('main.edit_session') }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <input type="hidden" name="session_id" value="{{ group.id }}">
                                 <input type="hidden" name="original_date" value="{{ group.date }}">
                                 <label class="field-label">Workout name
@@ -505,13 +514,15 @@
                                     <input type="date" name="date" required value="{{ group.date }}" class="form-control">
                                 </label>
                                 <button type="submit" class="self-end px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">Save workout</button>
-                            </form>
+                                    </form>
+                                </details>
+                                <form action="{{ url_for('main.delete_session') }}" method="POST" class="history-delete-form flex justify-end" onsubmit="return confirm('Delete this entire workout and all {{ group.sets|length }} of its sets? This cannot be undone.')">
+                                    <input type="hidden" name="session_id" value="{{ group.id }}">
+                                    <input type="hidden" name="date" value="{{ group.date }}">
+                                    <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete entire workout</button>
+                                </form>
+                            </div>
                         </details>
-                        <form action="{{ url_for('main.delete_session') }}" method="POST" class="flex justify-end" onsubmit="return confirm('Delete this entire workout and all {{ group.sets|length }} of its sets? This cannot be undone.')">
-                            <input type="hidden" name="session_id" value="{{ group.id }}">
-                            <input type="hidden" name="date" value="{{ group.date }}">
-                            <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete entire workout</button>
-                        </form>
                         {% for item in group.sets|reverse %}
                         {% set log = item.workout %}
                         <div class="border-t border-slate-800 pt-3">
@@ -628,7 +639,7 @@
                         <span><strong>More progress insights</strong><small>Personal records, muscle volume, and training consistency</small></span>
                     </summary>
                     <div class="progress-details-content">
-                        <section class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="personal-records-title">
+                        <section id="personal-records-section" class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="personal-records-title">
                             <h3 id="personal-records-title" class="font-medium text-emerald-400">Personal record milestones</h3>
                             <ul id="personal-record-history" class="mt-2 space-y-2 text-sm text-slate-300"></ul>
                             <p id="personal-record-empty" class="mt-2 text-sm text-slate-500">Log more workouts to build a milestone history.</p>
@@ -885,6 +896,7 @@
         filterExerciseLibrary();
         renderProgressChart();
         initializeProgressDetails();
+        initializeHistoryLayout();
         renderMuscleVolumeChart();
         initializeRoutineEditors();
         initializeRoutineComparisons();

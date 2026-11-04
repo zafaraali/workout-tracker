@@ -1063,6 +1063,33 @@ textarea.form-control {
     font-variant-numeric: tabular-nums;
 }
 
+.history-disclosure {
+    overflow: hidden;
+}
+
+.history-disclosure > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.5rem;
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 650;
+    list-style-position: inside;
+}
+
+.history-disclosure-detail {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 450;
+}
+
+.history-workout-actions > summary {
+    min-height: 2.5rem;
+}
+
 .chart-container {
     border: 1px solid var(--line-subtle);
     border-radius: 0.75rem;
@@ -1413,6 +1440,63 @@ input[type="radio"] {
         .progress-details-content {
             gap: 0.75rem;
             padding: 0.75rem;
+        }
+
+        #section-history > div {
+            padding: 0.85rem;
+        }
+
+        #history-calendar {
+            padding: 0.7rem;
+        }
+
+        #history-calendar .calendar-day {
+            display: grid;
+            min-height: 2.2rem;
+            align-content: center;
+            justify-items: center;
+            padding: 0.25rem 0.1rem;
+            font-size: 0.75rem;
+        }
+
+        #history-calendar .calendar-day-count {
+            display: none;
+        }
+
+        #history-calendar .calendar-day-active::after {
+            width: 0.25rem;
+            height: 0.25rem;
+            margin-top: 0.1rem;
+            border-radius: 50%;
+            background: var(--accent-color);
+            content: "";
+        }
+
+        #section-history article {
+            padding: 0.8rem;
+        }
+
+        #section-history .history-workout-actions {
+            margin-top: 0.25rem;
+        }
+
+        #section-history .history-repeat-form .field-label {
+            flex: 1 1 100%;
+        }
+
+        #section-history .history-repeat-form button {
+            min-height: 2.5rem;
+            width: 100%;
+        }
+
+        #section-history .history-delete-form button {
+            min-height: 2.5rem;
+            padding: 0.35rem 0;
+        }
+
+        #section-history article > div .flex.gap-3 button,
+        #section-history article > div .flex.gap-3 form button {
+            min-height: 2.5rem;
         }
     }
 

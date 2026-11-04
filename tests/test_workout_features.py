@@ -816,6 +816,8 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b'id="progress-more-details" class="progress-details"', response.data)
         self.assertIn(b"More progress insights", response.data)
         self.assertIn(b"id=\"progress-chart-content\"", response.data)
+        self.assertIn(b'id="personal-records-section"', response.data)
+        self.assertIn(b"initializeProgressDetails", response.data)
         self.assertIn(b"Controlled tempo", response.data)
 
     def test_library_has_search_and_category_filters_and_set_notes_input(self):
@@ -835,8 +837,14 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertIn(b'id="session-duration" class="session-status"', response.data)
         self.assertIn(b'id="timer-display" role="status" aria-live="polite"', response.data)
         self.assertIn(b"Your workout history starts here", response.data)
+        self.assertIn(b'id="history-calendar" class="history-disclosure', response.data)
+        self.assertIn(b"initializeHistoryLayout", response.data)
         self.assertIn(b'id="progress-empty-message"', response.data)
         self.assertIn(b"Log a workout", response.data)
+        self.log_set()
+        history_with_workout = self.client.get("/?tab=history&month=2026-10")
+        self.assertIn(b'class="history-workout-actions border-t border-slate-800 pt-3" open', history_with_workout.data)
+        self.assertIn(b"calendar-day-count", history_with_workout.data)
 
     def test_accent_color_picker_is_available(self):
         response = self.client.get("/")

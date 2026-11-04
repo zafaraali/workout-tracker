@@ -528,6 +528,17 @@ function initializeProgressDetails() {
     if (details) details.classList.toggle("hidden", !(window.progressData || []).length);
 }
 
+function initializeHistoryLayout() {
+    const calendar = document.getElementById("history-calendar");
+    if (!calendar) return;
+    if (window.matchMedia("(max-width: 640px)").matches) {
+        calendar.open = Boolean(new URLSearchParams(window.location.search).get("date"));
+        document.querySelectorAll(".history-workout-actions").forEach((details) => {
+            details.open = false;
+        });
+    }
+}
+
 function renderPersonalRecords(exercise) {
     const strength = (window.progressData || [])
         .filter((entry) => entry.exercise === exercise && entry.set_type !== "cardio")
@@ -569,15 +580,17 @@ function renderPersonalRecords(exercise) {
         strengthSummary ? `Strength PRs: ${strengthSummary}` : "",
         cardioSummary ? `Cardio PRs: ${cardioSummary}` : "",
     ].filter(Boolean);
-    document.getElementById("progress-records").textContent =
-        records.join(" · ") || "No personal records for this exercise yet.";
+    const recordsSummary = document.getElementById("progress-records");
+    recordsSummary.textContent = records.join(" · ");
+    recordsSummary.classList.toggle("hidden", records.length === 0);
 
     const history = document.getElementById("personal-record-history");
     const empty = document.getElementById("personal-record-empty");
     if (!history || !empty) return;
     const milestones = getPersonalRecordMilestones(exercise);
     history.replaceChildren();
-    empty.classList.toggle("hidden", milestones.length > 0);
+    document.getElementById("personal-records-section").classList.toggle("hidden", milestones.length === 0);
+    empty.classList.add("hidden");
     milestones.slice(-12).reverse().forEach((milestone) => {
         const item = document.createElement("li");
         item.className = "flex flex-wrap justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2";
