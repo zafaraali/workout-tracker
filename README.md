@@ -29,7 +29,7 @@ IronTrack is a self-hosted, FitNotes-style workout tracker built with Flask. It 
 - **Jinja** templates for rendering the interface
 - **Vanilla JavaScript and CSS** for interactive features and responsive styling
 - **Tailwind CSS** loaded from its CDN
-- **JSON files** for server-side data storage and backups
+- **SQLite** for server-side persistence, with the original JSON file retained as a portable mirror and migration fallback
 - **Browser APIs** including local storage, session storage, service workers, and Web Audio
 - **Python `unittest`** for automated tests
 
@@ -98,6 +98,7 @@ static/app.css            Responsive and theme styling
 static/service-worker.js  App-shell caching and offline behavior
 static/manifest.json      Installable web app metadata
 tests/                    Automated tests
-workout_data.json         Local data file (created as needed)
+irontrack.sqlite3         Local SQLite database (created automatically)
+workout_data.json         Portable JSON mirror and legacy migration source
 workout_backups/          Automatic data snapshots (created as needed)
 ```

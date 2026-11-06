@@ -368,6 +368,7 @@ def _valid_positive_number(value):
 def _training_insights(workouts, today):
     daily_dates = set()
     weekly_volume = {}
+    weekly_sets = 0
     recent_volumes = [0.0, 0.0, 0.0, 0.0]
     for workout in workouts:
         try:
@@ -392,6 +393,7 @@ def _training_insights(workouts, today):
             volume = weight * reps
             recent_volumes[week_index] += volume
             if week_index == 0:
+                weekly_sets += 1
                 muscle = workout.get("muscle") or "Other"
                 item = weekly_volume.setdefault(muscle, {"volume": 0.0, "sets": 0})
                 item["volume"] += volume
@@ -430,6 +432,7 @@ def _training_insights(workouts, today):
         "training_days": sum(
             1 for workout_date in daily_dates if 0 <= (today - workout_date).days < 7
         ),
+        "weekly_sets": weekly_sets,
         "streak": streak,
         "days_since": days_since,
         "recovery_note": recovery_note,

@@ -688,6 +688,9 @@ class WorkoutFeatureTests(unittest.TestCase):
         for feature in (
             b'id="quick-exercises"',
             b'id="auto-start-rest"',
+            b'id="timer-sound-enabled"',
+            b'id="timer-vibration-enabled"',
+            b'id="weekly-dashboard"',
             b'id="set-type-rest-preset"',
             b'id="personal-record-history"',
             b"Repeat workout",
@@ -710,6 +713,7 @@ class WorkoutFeatureTests(unittest.TestCase):
         insights = _training_insights(workouts, today)
 
         self.assertEqual(insights["training_days"], 3)
+        self.assertEqual(insights["weekly_sets"], 3)
         self.assertEqual(insights["streak"], 2)
         self.assertEqual(insights["weekly_volume"], [
             {"muscle": "Chest", "volume": 1000.0, "sets": 2},

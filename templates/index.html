@@ -180,6 +180,7 @@
                         </label>
                     </div>
                     <p id="logger-set-type" class="text-xs text-slate-500" aria-live="polite">Working set · kg · RPE 7</p>
+                    <p id="draft-status" class="text-xs text-emerald-400" aria-live="polite"></p>
                     <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition">Log Set</button>
                 </form>
             </div>
@@ -333,6 +334,17 @@
                         <input type="checkbox" id="auto-start-rest" class="accent-emerald-500">
                         Start the rest timer automatically after logging a set
                     </label>
+                    <fieldset class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+                        <legend class="field-label mb-1">Timer alerts</legend>
+                        <label class="flex items-center gap-2 text-sm text-slate-300">
+                            <input type="checkbox" id="timer-sound-enabled" class="accent-emerald-500" checked>
+                            Sound when rest ends
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-300">
+                            <input type="checkbox" id="timer-vibration-enabled" class="accent-emerald-500" checked>
+                            Vibrate when supported
+                        </label>
+                    </fieldset>
                     <p id="rest-preset-status" class="sm:col-span-2 text-xs text-slate-500" aria-live="polite"></p>
                 </div>
             </div>
@@ -603,6 +615,22 @@
                     <h2 class="text-lg font-semibold text-emerald-500">Exercise Progress</h2>
                     <p class="text-sm text-slate-400 mt-1">Track strength records and cardio distance or duration trends.</p>
                 </div>
+                <section id="weekly-dashboard" class="weekly-dashboard rounded-xl border border-emerald-900/50 bg-emerald-950/30 p-4" aria-labelledby="weekly-dashboard-title">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 id="weekly-dashboard-title" class="font-medium text-emerald-300">This week at a glance</h3>
+                            <p class="text-xs text-slate-400">Rolling 7-day training summary</p>
+                        </div>
+                        <span class="text-xs text-slate-400">{{ training_insights.recovery_note }}</span>
+                    </div>
+                    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div class="weekly-stat"><strong>{{ training_insights.training_days }}</strong><span>training days</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.weekly_sets }}</strong><span>working sets</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.recent_week_volume }}</strong><span>kg × reps</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.streak }}</strong><span>day streak</span></div>
+                    </div>
+                    <p class="mt-3 text-xs text-slate-400">Prior 3-week average: {{ training_insights.prior_week_average }} kg × reps</p>
+                </section>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <label class="field-label">Exercise
                         <select id="progress-exercise" onchange="renderProgressChart()" class="form-control">
@@ -732,7 +760,7 @@
                             <div class="flex flex-wrap gap-2">
                                 <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
                                 <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Save routine</button>
-                                <button type="button" data-start-routine="{{ routine.id }}" class="start-routine-button px-4 py-2 bg-emerald-800 text-white rounded-lg">Start routine</button>
+                                <button type="button" data-start-routine="{{ routine.id }}" class="start-routine-button px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg">Start routine now</button>
                             </div>
                         </form>
                         <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
@@ -886,6 +914,7 @@
         updateExercises();
         switchTab(["log", "library", "history", "progress", "routines", "measurements"].includes(initialTab) ? initialTab : "log");
         initializeWorkoutSession();
+        initializeWorkoutDraft();
         initializeRestPresets();
         toggleCardioFields();
         initializeActiveRoutine();

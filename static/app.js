@@ -165,6 +165,48 @@ function initializeWorkoutSession() {
     });
 }
 
+const WORKOUT_DRAFT_KEY = "irontrack-workout-draft";
+const WORKOUT_DRAFT_FIELDS = [
+    "muscle", "exercise", "set_type", "unit", "weight", "reps", "rpe",
+    "superset_group", "distance", "distance_unit", "duration", "notes",
+];
+
+function initializeWorkoutDraft() {
+    const form = document.querySelector('#section-log form[action*="/log"]');
+    if (!form) return;
+    const date = document.getElementById("workout-date").value;
+    try {
+        const draft = JSON.parse(sessionStorage.getItem(WORKOUT_DRAFT_KEY) || "null");
+        if (draft && draft.date === date && draft.values) {
+            WORKOUT_DRAFT_FIELDS.forEach((name) => {
+                const field = form.elements.namedItem(name);
+                if (field && draft.values[name] !== undefined) field.value = draft.values[name];
+            });
+            updateExercises();
+            document.getElementById("exercise-select").value = draft.values.exercise || "";
+            toggleCardioFields();
+            const status = document.getElementById("draft-status");
+            if (status) status.textContent = "Draft restored from this session.";
+        }
+    } catch (error) {
+        console.warn("Could not restore the workout draft.", error);
+    }
+    const saveDraft = () => {
+        const values = {};
+        WORKOUT_DRAFT_FIELDS.forEach((name) => {
+            const field = form.elements.namedItem(name);
+            if (field) values[name] = field.value;
+        });
+        sessionStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({date, values}));
+    };
+    form.addEventListener("input", saveDraft);
+    form.addEventListener("change", saveDraft);
+}
+
+function clearWorkoutDraft() {
+    sessionStorage.removeItem(WORKOUT_DRAFT_KEY);
+}
+
 function createSessionId() {
     const id = typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
@@ -763,6 +805,7 @@ function updateProgressionSuggestion(records) {
             targetReps = Math.min(repGoal, Number(bestSet.reps) + 1);
         }
     }
+    targetWeight = Number(targetWeight.toFixed(unit === "lb" ? 0 : 1));
     window.progressionTarget = {weight: targetWeight, reps: targetReps, unit};
     summary.textContent = `${achieved ? "You met your rep goal at a controlled effort." : "Build reps at your recent load."} Suggested next target: ${targetWeight} ${unit} × ${targetReps} reps.`;
 }
@@ -1470,10 +1513,12 @@ function initializeOfflineSupport() {
                         document.getElementById("timer-duration").value
                     );
                 }
+                clearWorkoutDraft();
                 window.location.assign(response.url);
                 return;
             }
             queueOfflineWorkout(formData);
+            clearWorkoutDraft();
             if (document.getElementById("auto-start-rest").checked) startTimer();
         } catch (error) {
             console.warn("Workout submission could not reach the server; it was queued locally.", error);
@@ -1580,6 +1625,16 @@ function initializeRestPresets() {
     autoStart.checked = localStorage.getItem("irontrack-auto-start-rest") === "true";
     autoStart.addEventListener("change", () => {
         localStorage.setItem("irontrack-auto-start-rest", String(autoStart.checked));
+    });
+    const soundEnabled = document.getElementById("timer-sound-enabled");
+    const vibrationEnabled = document.getElementById("timer-vibration-enabled");
+    soundEnabled.checked = localStorage.getItem("irontrack-timer-sound") !== "false";
+    vibrationEnabled.checked = localStorage.getItem("irontrack-timer-vibration") !== "false";
+    soundEnabled.addEventListener("change", () => {
+        localStorage.setItem("irontrack-timer-sound", String(soundEnabled.checked));
+    });
+    vibrationEnabled.addEventListener("change", () => {
+        localStorage.setItem("irontrack-timer-vibration", String(vibrationEnabled.checked));
     });
     document.getElementById("set-type").addEventListener("change", updateLoggerSetSummary);
     document.getElementById("weight-unit").addEventListener("change", updateLoggerSetSummary);
@@ -1740,7 +1795,12 @@ function startTimer() {
             startButton.disabled = false;
             stopButton.disabled = true;
             display.textContent = "⏱️ Rest finished!";
-            playTimerAlarm();
+            if (document.getElementById("timer-vibration-enabled")?.checked && "vibrate" in navigator) {
+                navigator.vibrate([220, 100, 220]);
+            }
+            if (document.getElementById("timer-sound-enabled")?.checked) {
+                playTimerAlarm();
+            }
             return;
         }
         renderTime();

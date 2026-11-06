@@ -351,6 +351,32 @@ html:not(.dark) .calendar-day-active.calendar-day-selected {
     background: #1e293b;
 }
 
+.weekly-stat {
+    display: flex;
+    min-height: 4.25rem;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--accent-color, #10b981) 20%, #1e293b);
+    border-radius: 0.7rem;
+    background: rgb(2 44 34 / 28%);
+    padding: 0.65rem 0.75rem;
+}
+
+.weekly-stat strong {
+    color: var(--accent-text, #6ee7b7);
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.weekly-stat span {
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.7rem;
+}
+
+html:not(.dark) .weekly-stat {
+    background: var(--accent-soft, #ecfdf5);
+}
+
 .goal-progress-fill {
     height: 100%;
     border-radius: inherit;
