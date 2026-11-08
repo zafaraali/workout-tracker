@@ -83,7 +83,7 @@ function switchTab(tab) {
     params.set("tab", tab);
     const query = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
-    ["log", "library", "history", "progress", "routines", "measurements", "nutrition"].forEach((name) => {
+    ["log", "library", "history", "progress", "routines", "measurements", "nutrition", "settings"].forEach((name) => {
         const panel = document.getElementById(`section-${name}`);
         panel.classList.toggle("hidden", name !== tab);
         panel.setAttribute("aria-hidden", String(name !== tab));
@@ -100,6 +100,14 @@ function switchTab(tab) {
             button.removeAttribute("aria-current");
         }
     });
+}
+
+function toggleMobileHeaderControls() {
+    const controls = document.getElementById("header-controls");
+    const button = document.getElementById("mobile-header-toggle");
+    if (!controls || !button) return;
+    const open = controls.classList.toggle("is-open");
+    button.setAttribute("aria-expanded", String(open));
 }
 
 function dismissToast(toast) {
@@ -839,7 +847,8 @@ function renderMeasurementChart() {
 
 
 function updateThemeLabel() {
-    document.getElementById("theme-label").textContent =
+    const themeLabel = document.getElementById("theme-label");
+    if (themeLabel) themeLabel.textContent =
         document.documentElement.classList.contains("dark") ? "☀️ Light mode" : "🌙 Dark mode";
 }
 
@@ -951,7 +960,8 @@ function setAccentColor(color) {
     root.style.setProperty("--accent-hover", `color-mix(in srgb, ${color} 82%, ${luminance > 0.5 ? "black" : "white"})`);
     root.style.setProperty("--accent-contrast", luminance > 0.58 ? "#0f172a" : "#ffffff");
     localStorage.setItem("irontrack-accent", color);
-    document.getElementById("accent-color").value = color;
+    const accentInput = document.getElementById("settings-accent-color");
+    if (accentInput) accentInput.value = color;
     document.querySelector('meta[name="theme-color"]').content = color;
 }
 
@@ -965,7 +975,7 @@ function toggleDarkMode() {
     updateThemeLabel();
     setAccentColor(
         localStorage.getItem("irontrack-accent")
-        || document.getElementById("accent-color").value
+        || document.getElementById("settings-accent-color")?.value
     );
 }
 

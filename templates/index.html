@@ -26,33 +26,21 @@
         <div class="app-header-inner max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-y-2">
             <div class="brand-lockup flex items-center space-x-2">
                 <img src="{{ url_for('static', filename='icon.svg') }}" alt="" width="34" height="34">
-                <div>
+            <div>
                     <h1 class="text-lg font-bold tracking-tight">IronTrack</h1>
                     <p class="brand-caption">Workout log</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                {% if auth_enabled %}<form method="POST" action="{{ url_for('logout') }}" onsubmit="return prepareSignOut(event)"><button type="submit" class="underline text-sm">Sign out</button></form>{% endif %}
-                <form method="POST" action="{{ url_for('main.switch_profile') }}" class="flex items-center gap-2"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="sr-only" for="profile-select">Active profile</label><select id="profile-select" name="profile_id" class="form-control text-sm py-1" onchange="this.form.submit()">{% for profile in profiles %}<option value="{{ profile.id }}" {% if profile.id == active_profile_id %}selected{% endif %}>{{ profile.name }}</option>{% endfor %}</select></form>
-                <form method="POST" action="{{ url_for('main.create_profile') }}" class="flex items-center gap-1"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="sr-only" for="new-profile-name">New profile name</label><input id="new-profile-name" name="name" class="form-control text-sm py-1 w-28" placeholder="New profile" maxlength="60"><button class="text-sm underline" type="submit">Add</button></form>
-                <a href="{{ url_for('main.diagnostics') }}" class="text-sm underline">Diagnostics</a>
-                <button id="install-app" type="button" class="hidden px-3 py-1.5 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg">Install app</button>
                 <span id="active-timer" class="hidden rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-1.5 font-mono text-sm text-emerald-300" role="status" aria-live="polite"></span>
-                <label class="accent-picker" title="Change site accent color">
-                    <span>Accent</span>
-                    <input type="color" id="accent-color" aria-label="Main accent color" value="#10b981" onchange="setAccentColor(this.value)">
-                </label>
-                <button type="button" id="reset-accent" onclick="resetAccentColor()" class="px-2 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700" title="Restore default accent color">Reset</button>
-                <button type="button" onclick="toggleDarkMode()" class="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
-                    <span id="theme-label">☀️ Light mode</span>
-                </button>
             </div>
         </div>
     </header>
     <script>
         const savedAccentPicker = localStorage.getItem("irontrack-accent");
         if (savedAccentPicker && /^#[\da-f]{6}$/i.test(savedAccentPicker)) {
-            document.getElementById("accent-color").value = savedAccentPicker;
+            const accentPicker = document.getElementById("settings-accent-color");
+            if (accentPicker) accentPicker.value = savedAccentPicker;
         }
     </script>
 
@@ -106,6 +94,7 @@
             <button type="button" onclick="switchTab('routines')" id="tab-routines" aria-label="Routines" aria-selected="false" aria-controls="section-routines" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">Routines</span></button>
             <button type="button" onclick="switchTab('measurements')" id="tab-measurements" aria-label="Body measurements" aria-selected="false" aria-controls="section-measurements" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">Body</span></button>
             <button type="button" onclick="switchTab('nutrition')" id="tab-nutrition" aria-label="Nutrition" aria-selected="false" aria-controls="section-nutrition" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">N</span><span class="nav-label">Nutrition</span></button>
+            <button type="button" onclick="switchTab('settings')" id="tab-settings" aria-label="Settings" aria-selected="false" aria-controls="section-settings" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Settings</span></button>
         </nav>
 
         {% include "sections/log.html" %}
@@ -120,6 +109,7 @@
 
         {% include "sections/measurements.html" %}
         {% include "sections/nutrition.html" %}
+        {% include "sections/settings.html" %}
 
         {% if automatic_backups %}
         <details class="rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -166,7 +156,7 @@
         if (initialExercise && [...document.getElementById("exercise-select").options].some((option) => option.value === initialExercise)) {
             document.getElementById("exercise-select").value = initialExercise;
         }
-        switchTab(["log", "library", "history", "progress", "routines", "measurements", "nutrition"].includes(initialTab) ? initialTab : "log");
+        switchTab(["log", "library", "history", "progress", "routines", "measurements", "nutrition", "settings"].includes(initialTab) ? initialTab : "log");
         initializeWorkoutSession();
         initializeWorkoutDraft();
         initializeWorkoutNavigationGuard();

@@ -1272,6 +1272,9 @@ body {
     gap: 1rem;
 }
 
+#mobile-header-toggle { display: none; }
+header .app-header-inner > div:last-child > button { display: none; }
+
 .brand-lockup {
     gap: 0.65rem;
 }
@@ -1714,6 +1717,22 @@ input[type="radio"] {
     .app-header-inner > div:last-child {
         gap: 0.35rem;
     }
+
+    #mobile-header-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #header-controls {
+        display: none;
+        flex-basis: 100%;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        padding-top: 0.25rem;
+    }
+
+    #header-controls.is-open { display: flex; }
 
     #install-app,
     #theme-label {

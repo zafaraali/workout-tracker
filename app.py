@@ -1,16 +1,18 @@
 import os
 import secrets
 import hmac
+import logging
 from datetime import timedelta
 from auth import auth_enabled, register_auth
 
-from flask import Flask, abort, request, session, g, jsonify
+from flask import Flask, abort, request, session, g, jsonify, render_template
 from storage import write_transaction
 
 from routes import main
 
 
 app = Flask(__name__)
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -88,11 +90,22 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'self'")
     if auth_enabled() and request.endpoint != "static":
         response.headers["Cache-Control"] = "private, no-store"
     if request.endpoint == "main.index" and response.status_code == 200:
         response.headers["X-IronTrack-Shell"] = "1"
     return response
+
+
+@app.errorhandler(400)
+@app.errorhandler(404)
+@app.errorhandler(500)
+def handle_http_error(error):
+    if request.path.startswith("/api/") or request.headers.get("X-Offline-Sync"):
+        return jsonify(ok=False, error=getattr(error, "description", "Request failed")), error.code
+    return render_template("error.html", error_code=error.code, error_message=getattr(error, "description", "Something went wrong.")), error.code
 
 
 app.register_blueprint(main)

@@ -122,7 +122,7 @@ function initializeOfflineSupport() {
             console.error("Offline app shell could not be registered.", error);
         });
     }
-    const installButton = document.getElementById("install-app");
+    const installButton = document.getElementById("install-app-settings");
     window.addEventListener("beforeinstallprompt", (event) => {
         event.preventDefault();
         window.installPrompt = event;

@@ -5,7 +5,7 @@ import uuid
 import csv
 import io
 
-from flask import Response, flash, redirect, render_template, request, send_file, url_for
+from flask import Response, flash, redirect, render_template, request, send_file, session, url_for
 
 from storage import automatic_backups, database_backup_bytes, load_data, save_data, validate_data
 
@@ -46,7 +46,7 @@ def _import_csv_date(value):
 
 
 def _import_csv_duration(row):
-    seconds = _csv_field(row, "duration (seconds)", "seconds", "elapsed seconds")
+    seconds = _csv_field(row, "duration (seconds)", "duration_seconds", "seconds", "elapsed seconds")
     minutes = _csv_field(row, "duration", "duration (minutes)", "minutes")
     raw = seconds or minutes
     if not raw:
@@ -154,7 +154,7 @@ def import_workouts_csv():
         }
         imported_workouts = []
         session_ids = {}
-        for row in rows:
+        for row_index, row in enumerate(rows):
             date = _import_csv_date(_csv_field(row, "date", "workout date", "start time"))
             exercise = _csv_field(row, "exercise name", "exercise", "name")[:100]
             if not exercise:
@@ -203,6 +203,77 @@ def import_workouts_csv():
         return redirect(url_for("main.index", tab="history"))
     flash(f"Imported {len(imported_workouts)} workout set(s) from CSV.", "success")
     return redirect(url_for("main.index", tab="history"))
+
+
+@main.route("/import/workouts/<source>", methods=["POST"])
+def import_external_workouts(source):
+    labels = {"strong": "Strong", "hevy": "Hevy", "fitnotes": "FitNotes"}
+    source = source.casefold()
+    if source not in labels:
+        flash("Unsupported workout export format.", "error")
+        return redirect(url_for("main.index", tab="history"))
+    uploaded_file = request.files.get("external_workouts_file")
+    if uploaded_file is None or not uploaded_file.filename:
+        flash(f"Select a {labels[source]} CSV export.", "error")
+        return redirect(url_for("main.index", tab="history"))
+
+    try:
+        content = _decode_csv_upload(uploaded_file.read())
+        rows = list(csv.DictReader(io.StringIO(content)))
+        if not rows or len(rows) > 10000:
+            raise ValueError("The export is empty or too large.")
+        data = load_data()
+        exercises = {category: list(names) for category, names in data["exercises"].items()}
+        imported_workouts = []
+        session_ids = {}
+        profile_id = session.get("profile_id", "default")
+        for row_index, row in enumerate(rows):
+            date = _import_csv_date(_csv_field(row, "date", "start_time", "start date", "workout date"))
+            exercise = _csv_field(row, "exercise name", "exercise_title", "exercise", "name")[:100]
+            if not exercise:
+                raise ValueError("The export contains a row without an exercise name.")
+            matched_category, matched_exercise = _match_library_exercise(exercise, exercises)
+            if matched_category:
+                exercise = matched_exercise
+            category = _csv_field(row, "muscle", "muscle group", "category", "body part") or matched_category or "Imported"
+            exercises.setdefault(category, [])
+            if exercise.casefold() not in {name.casefold() for name in exercises[category]}:
+                exercises[category].append(exercise)
+            workout_name = _csv_field(row, "workout name", "workout", "title") or f"Imported {labels[source]} workout"
+            session_key = (date, workout_name)
+            session_id = session_ids.setdefault(session_key, str(uuid.uuid4()))
+            raw_type = _csv_field(row, "set type", "set_type", "set type name").casefold()
+            set_type = {"warm up": "warmup", "warm-up": "warmup", "warmup": "warmup", "drop set": "drop", "drop": "drop", "failure": "failure", "to failure": "failure", "cardio": "cardio"}.get(raw_type, "working")
+            weight = _csv_field(row, "weight", "weight_kg", "load") or "0"
+            unit = "lb" if _csv_field(row, "weight unit", "unit").casefold() in {"lb", "lbs", "pound", "pounds"} else "kg"
+            reps = _csv_field(row, "reps", "repetitions") or "1"
+            distance = _csv_field(row, "distance", "distance_km")
+            duration = _import_csv_duration(row)
+            if distance or (duration and not _csv_field(row, "reps", "repetitions")):
+                set_type = "cardio"
+            entry_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"irontrack:{source}:{row_index}:{date}:{workout_name}:{exercise}:{weight}:{reps}"))
+            imported_workouts.append({"date": date, "session_id": session_id, "session_name": workout_name[:100], "entry_id": entry_id, "profile_id": profile_id, "muscle": category, "exercise": exercise, "set_type": set_type, "weight": weight, "unit": unit, "reps": reps, "bodyweight": str(weight).strip() in {"0", "0.0"}, "rpe": _csv_field(row, "rpe", "rir") or "7", "distance": distance, "distance_unit": "mi" if _csv_field(row, "distance unit").casefold() in {"mi", "mile", "miles"} else "km", "duration": duration, "notes": _csv_field(row, "notes", "note", "description")[:500]})
+        imported = {"workouts": imported_workouts, "exercises": exercises, "routines": [], "measurements": [], "goals": [], "nutrition": [], "profiles": data.get("profiles", [])}
+        save_data(_merge_backup_data(data, _validated_backup_data(imported)))
+    except (UnicodeDecodeError, ValueError, TypeError, OverflowError):
+        flash(f"The {labels[source]} export could not be imported. Check its CSV format.", "error")
+        return redirect(url_for("main.index", tab="history"))
+    flash(f"Imported {len(imported_workouts)} set(s) from {labels[source]}.", "success")
+    return redirect(url_for("main.index", tab="history"))
+
+
+@main.route("/import/template/<source>.csv")
+def import_template(source):
+    columns = {
+        "strong": ["Date", "Workout Name", "Exercise Name", "Weight", "Weight Unit", "Reps", "RPE", "Distance", "Distance Unit", "Duration", "Notes"],
+        "hevy": ["start_time", "title", "exercise_title", "weight_kg", "reps", "rpe", "distance_km", "duration_seconds", "notes"],
+        "fitnotes": ["Date", "Exercise", "Category", "Weight", "Reps", "Distance", "Time", "Notes"],
+    }.get(source.casefold())
+    if columns is None:
+        return "Unsupported import template", 404
+    output = io.StringIO(newline="")
+    csv.writer(output).writerow(columns)
+    return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={source.casefold()}_template.csv"})
 
 
 @main.route("/export/measurements.csv")

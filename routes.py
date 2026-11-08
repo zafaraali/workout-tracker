@@ -86,6 +86,10 @@ def index():
     active_profile_id, active_profile_name = _active_profile(data)
     selected_date = request.args.get("date", "").strip()
     selected_month = request.args.get("month", datetime.date.today().strftime("%Y-%m"))
+    try:
+        history_page = max(1, int(request.args.get("page", "1")))
+    except ValueError:
+        history_page = 1
     if selected_date:
         try:
             datetime.date.fromisoformat(selected_date)
@@ -136,6 +140,11 @@ def index():
         calendar_days.append({"date": "", "day": "", "count": 0})
 
     active_session_id = request.args.get("session_id", "").strip()
+    all_workout_groups = _workout_groups(profile_workouts, selected_date)
+    history_page_size = 20
+    history_page_count = max(1, (len(all_workout_groups) + history_page_size - 1) // history_page_size)
+    history_page = min(history_page, history_page_count)
+    workout_groups = all_workout_groups[(history_page - 1) * history_page_size:history_page * history_page_size]
     training_insights = _training_insights(profile_workouts, datetime.date.today())
     measurements = list(reversed(profile_measurements))
     for measurement_index, measurement in enumerate(reversed(profile_measurements)):
@@ -199,7 +208,9 @@ def index():
         exercises=data["exercises"],
         exercise_metadata=library_metadata(data["exercises"]),
         exercise_names=exercises,
-        workout_groups=_workout_groups(profile_workouts, selected_date),
+        workout_groups=workout_groups,
+        history_page=history_page,
+        history_page_count=history_page_count,
         progress_workouts=profile_workouts,
         training_insights=training_insights,
         settings=data.get("settings", {"gym_name": "Home gym", "equipment": []}),
@@ -261,9 +272,17 @@ def index():
 def log_workout():
     data = load_data()
     entry_id = request.form.get("entry_id", "").strip()
-    if entry_id and any(workout.get("entry_id") == entry_id for workout in data["workouts"]):
+    existing_entry = next((workout for workout in data["workouts"] if workout.get("entry_id") == entry_id), None) if entry_id else None
+    if existing_entry:
+        submitted = {key: request.form.get(key, "") for key in ("date", "exercise", "weight", "unit", "reps", "rpe", "set_type", "notes")}
+        existing = {key: str(existing_entry.get(key, "")) for key in submitted}
+        if submitted == existing:
+            if request.headers.get("X-Offline-Sync"):
+                return jsonify(ok=True, duplicate=True)
+            return redirect(url_for("main.index", tab="history"))
         if request.headers.get("X-Offline-Sync"):
-            return jsonify(ok=True, duplicate=True)
+            return jsonify(ok=False, conflict=True, error="This set already exists with different values. Review the pending set before retrying."), 409
+        flash("This workout set already exists with different values.", "error")
         return redirect(url_for("main.index", tab="history"))
     try:
         entry = _validated_workout(request.form, data["exercises"])
