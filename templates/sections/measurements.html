@@ -28,7 +28,7 @@
                     <input type="hidden" name="profile_id" value="{{ active_profile_id }}">
                     <label class="field-label">Date<input type="date" name="date" required value="{{ today }}" class="form-control"></label>
                     <label class="field-label">Body weight<input type="number" step="0.1" min="0" name="body_weight" placeholder="Optional" class="form-control"></label>
-                    <label class="field-label">Weight unit<select name="unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select></label>
+                    <label class="field-label">Weight unit<select name="unit" data-unit-preference class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select></label>
                     <label class="field-label">Waist (cm)<input type="number" step="0.1" min="0" name="waist" placeholder="Optional" class="form-control"></label>
                     <label class="field-label">Chest (cm)<input type="number" step="0.1" min="0" name="chest" placeholder="Optional" class="form-control"></label>
                     <label class="field-label">Hips (cm)<input type="number" step="0.1" min="0" name="hips" placeholder="Optional" class="form-control"></label>

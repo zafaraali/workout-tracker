@@ -645,6 +645,7 @@ function updateGoalMetricUnit() {
         new Option(isWeight ? "kg" : "cm", isWeight ? "kg" : "cm"),
         ...(isWeight ? [new Option("lb", "lb")] : [])
     );
+    unit.value = isWeight ? getUnitPreference() : "cm";
     direction.querySelector('[value="increase"]').disabled = !isWeight;
     if (!isWeight) direction.value = "decrease";
 }
@@ -991,6 +992,33 @@ function setAccentColor(color) {
 
 function resetAccentColor() {
     setAccentColor("#10b981");
+}
+
+function getUnitPreference() {
+    return localStorage.getItem("irontrack-weight-unit") === "lb" ? "lb" : "kg";
+}
+
+function setUnitPreference(unit) {
+    const preference = unit === "lb" ? "lb" : "kg";
+    localStorage.setItem("irontrack-weight-unit", preference);
+    document.querySelectorAll("[data-unit-preference]").forEach((select) => {
+        select.value = preference;
+    });
+    ["kg", "lb"].forEach((option) => {
+        const button = document.getElementById(`settings-unit-${option}`);
+        if (!button) return;
+        const selected = option === preference;
+        button.setAttribute("aria-pressed", String(selected));
+        button.classList.toggle("bg-emerald-700", selected);
+        button.classList.toggle("border-emerald-500", selected);
+    });
+    const status = document.getElementById("settings-unit-status");
+    if (status) status.textContent = `New weight entries use ${preference === "lb" ? "lb (pounds)" : "kg"}.`;
+    updateLoggerSetSummary();
+}
+
+function initializeUnitPreference() {
+    setUnitPreference(getUnitPreference());
 }
 
 function toggleDarkMode() {

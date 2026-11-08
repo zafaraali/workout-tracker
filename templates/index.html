@@ -145,6 +145,7 @@
             document.getElementById("first-run-guide").remove();
         }
         const initialTab = {{ selected_tab|tojson }};
+        initializeUnitPreference();
         initializeFastLogging();
         initializeCompactLog();
         initializeToasts();

@@ -7,7 +7,8 @@
             "weight": "0",
             "reps": "10",
             "rpe": "7",
-            "entry_id": "legacy-set-1"
+            "entry_id": "legacy-set-1",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -16,7 +17,8 @@
             "weight": "0",
             "reps": "10",
             "rpe": "7",
-            "entry_id": "legacy-set-2"
+            "entry_id": "legacy-set-2",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -35,7 +37,8 @@
             "elapsed_seconds": 0,
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -54,7 +57,8 @@
             "elapsed_seconds": 0,
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -73,7 +77,8 @@
             "elapsed_seconds": 0,
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -92,7 +97,8 @@
             "elapsed_seconds": 0,
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-03",
@@ -111,7 +117,8 @@
             "elapsed_seconds": 0,
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
         },
         {
             "date": "2026-11-08",
@@ -131,7 +138,8 @@
             "superset_group": "",
             "session_id": "947703c8-c3df-4d81-8ce0-7ebfb8c29f7a",
             "session_name": "Quad focused leg day",
-            "finished": true
+            "finished": true,
+            "profile_id": "default"
         },
         {
             "date": "2026-11-08",
@@ -151,7 +159,8 @@
             "superset_group": "",
             "session_id": "947703c8-c3df-4d81-8ce0-7ebfb8c29f7a",
             "session_name": "Quad focused leg day",
-            "finished": true
+            "finished": true,
+            "profile_id": "default"
         },
         {
             "date": "2026-11-08",
@@ -170,7 +179,52 @@
             "elapsed_seconds": 8,
             "superset_group": "",
             "session_id": "2d1f6322-3b4a-480e-b4d0-03faaaab31ce",
-            "session_name": "Workout"
+            "session_name": "Workout",
+            "profile_id": "default"
+        },
+        {
+            "date": "2026-11-08",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "20",
+            "bodyweight": false,
+            "reps": "10",
+            "rpe": "7",
+            "unit": "kg",
+            "notes": "",
+            "set_type": "working",
+            "distance": "",
+            "duration": "",
+            "distance_unit": "km",
+            "entry_id": "7a85ed3e-486b-484c-be81-8ea8f945e7d6",
+            "elapsed_seconds": 224,
+            "superset_group": "",
+            "session_id": "de694fc0-0076-47fb-ac8e-1b40a1c4b054",
+            "session_name": "Workout",
+            "profile_id": "default",
+            "finished": true
+        },
+        {
+            "date": "2026-11-08",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "135",
+            "bodyweight": false,
+            "reps": "10",
+            "rpe": "7",
+            "unit": "lb",
+            "notes": "",
+            "set_type": "working",
+            "distance": "",
+            "duration": "",
+            "distance_unit": "km",
+            "entry_id": "6967e91d-1f3f-4412-b459-be0105de470e",
+            "elapsed_seconds": 224,
+            "superset_group": "",
+            "session_id": "de694fc0-0076-47fb-ac8e-1b40a1c4b054",
+            "session_name": "Workout",
+            "profile_id": "default",
+            "finished": true
         }
     ],
     "exercises": {
@@ -225,5 +279,16 @@
     },
     "routines": [],
     "measurements": [],
-    "goals": []
+    "goals": [],
+    "settings": {
+        "gym_name": "Home gym",
+        "equipment": []
+    },
+    "nutrition": [],
+    "profiles": [
+        {
+            "id": "default",
+            "name": "Default profile"
+        }
+    ]
 }
