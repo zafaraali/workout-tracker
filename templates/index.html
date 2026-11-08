@@ -87,6 +87,8 @@
         {% endwith %}
 
         <nav class="app-nav" aria-label="Main navigation" role="tablist">
+            <button type="button" id="mobile-nav-toggle" class="mobile-nav-toggle" aria-expanded="true" aria-controls="mobile-nav-tabs" onclick="toggleMobileNav()"><span class="mobile-nav-caret" aria-hidden="true"></span><span class="sr-only">Collapse navigation</span></button>
+            <div id="mobile-nav-tabs" class="mobile-nav-tabs">
             <button type="button" onclick="switchTab('log')" id="tab-log" aria-label="Log Workout" aria-current="page" aria-selected="true" aria-controls="section-log" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">＋</span><span class="nav-label">Log Workout</span></button>
             <button type="button" onclick="switchTab('library')" id="tab-library" aria-label="Exercises" aria-selected="false" aria-controls="section-library" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-label">Exercises</span></button>
             <button type="button" onclick="switchTab('history')" id="tab-history" aria-label="History" aria-selected="false" aria-controls="section-history" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◷</span><span class="nav-label">History</span></button>
@@ -95,6 +97,7 @@
             <button type="button" onclick="switchTab('measurements')" id="tab-measurements" aria-label="Body measurements" aria-selected="false" aria-controls="section-measurements" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">Body</span></button>
             <button type="button" onclick="switchTab('nutrition')" id="tab-nutrition" aria-label="Nutrition" aria-selected="false" aria-controls="section-nutrition" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">N</span><span class="nav-label">Nutrition</span></button>
             <button type="button" onclick="switchTab('settings')" id="tab-settings" aria-label="Settings" aria-selected="false" aria-controls="section-settings" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-label">Settings</span></button>
+            </div>
         </nav>
 
         {% include "sections/log.html" %}
@@ -146,6 +149,7 @@
         initializeCompactLog();
         initializeToasts();
         initializeAccessibleNavigation();
+        initializeMobileNav();
         initializeKeyboardShortcuts();
         const initialMuscle = new URLSearchParams(window.location.search).get("muscle");
         if (initialMuscle && Object.prototype.hasOwnProperty.call(window.exercisesData, initialMuscle)) {

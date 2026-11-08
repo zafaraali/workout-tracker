@@ -146,6 +146,9 @@ html:not(.dark) .date-picker-button:hover {
     padding-bottom: 0.5rem;
 }
 
+.mobile-nav-toggle { display: none; }
+.mobile-nav-tabs { display: contents; }
+
 .app-nav .tab-button {
     min-width: 0;
     border-radius: 0.625rem;
@@ -1752,7 +1755,40 @@ input[type="radio"] {
         padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom));
         background: var(--surface-raised);
         box-shadow: 0 -4px 16px rgb(0 0 0 / 12%);
+        overflow: visible;
     }
+
+    .mobile-nav-toggle {
+        display: grid;
+        position: absolute;
+        right: 0.65rem;
+        top: -2.15rem;
+        width: 2.1rem;
+        height: 2.1rem;
+        place-items: center;
+        border: 1px solid #334155;
+        border-radius: 0.65rem 0.65rem 0 0;
+        background: #0f172a;
+        color: #cbd5e1;
+        font-size: 1.15rem;
+        z-index: 2;
+        appearance: none;
+    }
+
+    .mobile-nav-caret {
+        display: block;
+        width: 0.55rem;
+        height: 0.55rem;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: translateY(-0.12rem) rotate(45deg);
+    }
+
+    .mobile-nav-caret.is-up { transform: translateY(0.12rem) rotate(225deg); }
+
+    .mobile-nav-tabs { display: contents; }
+    .app-nav.is-collapsed { min-height: 0; padding-top: 0.35rem; }
+    .app-nav.is-collapsed .mobile-nav-tabs { display: none; }
 
     .app-nav .tab-button {
         display: flex;

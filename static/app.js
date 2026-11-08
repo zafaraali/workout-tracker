@@ -110,6 +110,30 @@ function toggleMobileHeaderControls() {
     button.setAttribute("aria-expanded", String(open));
 }
 
+function initializeMobileNav() {
+    const navigation = document.querySelector(".app-nav");
+    if (!navigation) return;
+    if (localStorage.getItem("irontrack-mobile-nav-collapsed") === "1") setMobileNavCollapsed(true);
+}
+
+function setMobileNavCollapsed(collapsed) {
+    const navigation = document.querySelector(".app-nav");
+    const button = document.getElementById("mobile-nav-toggle");
+    if (!navigation || !button) return;
+    navigation.classList.toggle("is-collapsed", collapsed);
+    button.setAttribute("aria-expanded", String(!collapsed));
+    button.querySelector(".mobile-nav-caret")?.classList.toggle("is-up", collapsed);
+    button.querySelector(".sr-only").textContent = collapsed ? "Open navigation" : "Collapse navigation";
+}
+
+function toggleMobileNav() {
+    const navigation = document.querySelector(".app-nav");
+    if (!navigation) return;
+    const collapsed = !navigation.classList.contains("is-collapsed");
+    setMobileNavCollapsed(collapsed);
+    localStorage.setItem("irontrack-mobile-nav-collapsed", collapsed ? "1" : "0");
+}
+
 function dismissToast(toast) {
     if (!toast) return;
     toast.classList.remove("toast-visible");
