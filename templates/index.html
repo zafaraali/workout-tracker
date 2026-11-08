@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}">
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <meta name="theme-color" content="#020617">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <script>
         if (localStorage.getItem("irontrack-theme") === "light") {
             document.documentElement.classList.remove("dark");
@@ -16,14 +17,8 @@
             document.documentElement.style.setProperty("--accent-color", savedAccent);
         }
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: { extend: { colors: { brand: { 500: "#10b981", 600: "#059669" } } } }
-        };
-    </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=layout-20261108-24">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -37,6 +32,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
+                {% if auth_enabled %}<form method="POST" action="{{ url_for('logout') }}" onsubmit="return prepareSignOut(event)"><button type="submit" class="underline text-sm">Sign out</button></form>{% endif %}
+                <form method="POST" action="{{ url_for('main.switch_profile') }}" class="flex items-center gap-2"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="sr-only" for="profile-select">Active profile</label><select id="profile-select" name="profile_id" class="form-control text-sm py-1" onchange="this.form.submit()">{% for profile in profiles %}<option value="{{ profile.id }}" {% if profile.id == active_profile_id %}selected{% endif %}>{{ profile.name }}</option>{% endfor %}</select></form>
+                <form method="POST" action="{{ url_for('main.create_profile') }}" class="flex items-center gap-1"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="sr-only" for="new-profile-name">New profile name</label><input id="new-profile-name" name="name" class="form-control text-sm py-1 w-28" placeholder="New profile" maxlength="60"><button class="text-sm underline" type="submit">Add</button></form>
+                <a href="{{ url_for('main.diagnostics') }}" class="text-sm underline">Diagnostics</a>
                 <button id="install-app" type="button" class="hidden px-3 py-1.5 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg">Install app</button>
                 <span id="active-timer" class="hidden rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-1.5 font-mono text-sm text-emerald-300" role="status" aria-live="polite"></span>
                 <label class="accent-picker" title="Change site accent color">
@@ -60,15 +59,42 @@
     <main id="main-content" tabindex="-1" class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
         <aside id="offline-status" class="hidden rounded-xl border border-amber-700 bg-amber-950 p-3 text-sm text-amber-200" aria-live="polite">
             <span id="offline-status-text"></span>
+            <a id="sign-in-to-sync" href="{{ url_for('login') }}" class="hidden underline ml-3">Sign in to sync</a>
             <button type="button" id="sync-offline-workouts" onclick="syncOfflineWorkouts()" class="ml-3 underline">Sync now</button>
         </aside>
+        {% if session.get('deleted_set') or session.get('deleted_sets') %}
+        <form action="{{ url_for('main.undo_delete_set') }}" method="POST" class="workspace-card p-3" role="status">
+            Workout data deleted. <button type="submit" class="underline">Undo deletion</button>
+        </form>
+        {% endif %}
+        <details id="queued-workouts" class="workspace-card p-3 hidden"><summary>Review pending sets</summary><ul id="queued-workouts-list" class="space-y-3 mt-3"></ul></details>
+        {% if not has_workouts %}
+        <aside id="first-run-guide" class="workspace-card rounded-2xl border border-emerald-800 bg-emerald-950/30 p-5" aria-labelledby="first-run-title">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <p class="eyebrow">QUICK START</p>
+                    <h2 id="first-run-title" class="text-lg font-semibold text-emerald-300">Log your first workout</h2>
+                    <p class="mt-1 text-sm text-slate-300">Pick an exercise, enter your load and reps, then tap Log Set. You can build routines and import data later.</p>
+                </div>
+                <button type="button" class="underline text-sm" onclick="dismissFirstRunGuide()">Dismiss</button>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <button type="button" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm" onclick="document.getElementById('set-weight')?.focus()">Start logging</button>
+                <button type="button" class="rounded-lg border border-slate-700 px-4 py-2 text-sm" onclick="switchTab('routines')">Browse routines</button>
+                <button type="button" class="rounded-lg border border-slate-700 px-4 py-2 text-sm" onclick="switchTab('library')">Customize exercises</button>
+            </div>
+        </aside>
+        {% endif %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
+            <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false">
                 {% for category, message in messages %}
-                    <div class="p-4 rounded-xl border text-sm {{ 'bg-emerald-950 border-emerald-800 text-emerald-300' if category == 'success' else 'bg-rose-950 border-rose-800 text-rose-300' }}">
-                        {{ message }}
-                    </div>
+                <div class="toast {{ 'toast-success' if category == 'success' else 'toast-error' }}" data-toast data-toast-type="{{ category }}" role="{{ 'status' if category == 'success' else 'alert' }}">
+                    <span>{{ message }}</span>
+                    <button type="button" class="toast-dismiss" onclick="dismissToast(this.closest('[data-toast]'))" aria-label="Dismiss notification">&times;</button>
+                </div>
                 {% endfor %}
+            </div>
             {% endif %}
         {% endwith %}
 
@@ -79,828 +105,41 @@
             <button type="button" onclick="switchTab('progress')" id="tab-progress" aria-label="Progress" aria-selected="false" aria-controls="section-progress" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">↗</span><span class="nav-label">Progress</span></button>
             <button type="button" onclick="switchTab('routines')" id="tab-routines" aria-label="Routines" aria-selected="false" aria-controls="section-routines" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">☷</span><span class="nav-label">Routines</span></button>
             <button type="button" onclick="switchTab('measurements')" id="tab-measurements" aria-label="Body measurements" aria-selected="false" aria-controls="section-measurements" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">◉</span><span class="nav-label">Body</span></button>
+            <button type="button" onclick="switchTab('nutrition')" id="tab-nutrition" aria-label="Nutrition" aria-selected="false" aria-controls="section-nutrition" role="tab" class="tab-button"><span class="nav-icon" aria-hidden="true">N</span><span class="nav-label">Nutrition</span></button>
         </nav>
 
-        <section id="section-log" role="tabpanel" aria-labelledby="tab-log" tabindex="0" class="tab-panel space-y-6">
-            <div class="workspace-card log-entry-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">TRAINING SESSION</p>
-                        <h2 class="text-lg font-semibold text-emerald-500">Log a set</h2>
-                    </div>
-                    <span class="entry-hint">Choose an exercise, enter the set, save.</span>
-                </div>
-                <form action="{{ url_for('main.log_workout') }}" method="POST" class="space-y-4">
-                    <input type="hidden" name="entry_id" class="entry-id">
-                    <input type="hidden" name="routine_id" id="workout-routine-id" value="{{ active_session_routine_id }}">
-                    <input type="hidden" name="elapsed_seconds" id="elapsed-seconds" value="0">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="field-label">
-                            <label for="workout-date">Workout date</label>
-                            <div class="date-picker-control">
-                                <input type="date" id="workout-date" name="date" required value="{{ today }}" class="form-control">
-                                <button type="button" class="date-picker-button" onclick="openDatePicker('workout-date')" aria-label="Open workout date picker">📅</button>
-                            </div>
-                        </div>
-                        <label class="field-label">Muscle group
-                            <select name="muscle" id="muscle-select" onchange="updateExercises()" required class="form-control">
-                                {% for group in exercises.keys() %}
-                                <option value="{{ group }}">{{ group }}</option>
-                                {% endfor %}
-                            </select>
-                        </label>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <label class="field-label">Workout name
-                            <input type="text" name="session_name" id="session-name" maxlength="100" value="{{ active_session_name or 'Workout' }}" class="form-control">
-                        </label>
-                        <div class="field-label">Workout session
-                            <div class="flex gap-2">
-                                <span id="session-indicator" class="form-control flex-1 text-slate-400">Current session</span>
-                                <input type="hidden" name="session_id" id="session-id" value="{{ active_session_id }}">
-                                <button type="button" onclick="startNewWorkoutSession()" class="mt-1 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700">New session</button>
-                            </div>
-                        </div>
-                    </div>
-                    <label class="field-label">Exercise
-                        <select name="exercise" id="exercise-select" onchange="showExerciseHistory(); renderQuickExercises()" required class="form-control"></select>
-                    </label>
-                    <div class="space-y-2">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quick picks</span>
-                            <button type="button" id="favorite-exercise-toggle" onclick="toggleFavoriteExercise()" class="text-sm text-amber-400">☆ Favorite this exercise</button>
-                        </div>
-                        <div id="quick-exercises" class="flex flex-wrap gap-2" aria-label="Recent and favorite exercises"></div>
-                    </div>
-                    <details class="set-options">
-                        <summary>Set details <span>Type, units, superset, effort, and notes</span></summary>
-                        <div class="set-options-content">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <label class="field-label">Set type
-                                    <select name="set_type" id="set-type" onchange="toggleCardioFields()" aria-label="Set type" class="form-control">
-                                        <option value="working">Working set</option><option value="warmup">Warm-up</option>
-                                        <option value="drop">Drop set</option><option value="failure">To failure</option><option value="cardio">Cardio</option>
-                                    </select>
-                                </label>
-                                <label class="field-label">Weight unit
-                                    <select name="unit" id="weight-unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select>
-                                </label>
-                                <label class="field-label">Superset group
-                                    <select name="superset_group" class="form-control">
-                                        <option value="">No superset</option>
-                                        {% for group in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ group }}">Superset {{ group }}</option>{% endfor %}
-                                    </select>
-                                </label>
-                                <label class="field-label">RPE / intensity
-                                    <input type="number" min="1" max="10" name="rpe" id="set-rpe" required value="7" class="form-control">
-                                </label>
-                            </div>
-                            <div id="cardio-fields" class="hidden grid grid-cols-2 gap-3 sm:gap-4">
-                                <label class="field-label">Distance
-                                    <input type="number" min="0" step="0.1" name="distance" id="set-distance" placeholder="e.g. 5" class="form-control">
-                                </label>
-                                <label class="field-label">Distance unit
-                                    <select name="distance_unit" id="distance-unit" class="form-control"><option value="km">km</option><option value="mi">mi</option></select>
-                                </label>
-                                <label class="field-label">Duration (minutes)
-                                    <input type="number" min="1" step="1" name="duration" id="set-duration" placeholder="e.g. 30" class="form-control">
-                                </label>
-                            </div>
-                            <label class="field-label">Set notes <span class="normal-case tracking-normal text-slate-400">(optional)</span>
-                                <textarea name="notes" maxlength="500" rows="2" placeholder="Form, equipment, or how it felt" class="form-control"></textarea>
-                            </label>
-                        </div>
-                    </details>
-                    <div id="strength-fields" class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                        <label class="field-label">Weight
-                            <input type="number" step="0.5" min="0" name="weight" id="set-weight" required value="0" class="form-control">
-                        </label>
-                        <label class="field-label">Reps
-                            <input type="number" min="1" name="reps" id="set-reps" required value="10" class="form-control">
-                        </label>
-                    </div>
-                    <p id="logger-set-type" class="text-xs text-slate-500" aria-live="polite">Working set · kg · RPE 7</p>
-                    <p id="draft-status" class="text-xs text-emerald-400" aria-live="polite"></p>
-                    <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition">Log Set</button>
-                </form>
-            </div>
+        {% include "sections/log.html" %}
 
-            <div class="workspace-card active-workout-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                <div class="flex flex-wrap justify-between items-center gap-2">
-                    <h2 class="text-lg font-semibold text-emerald-500">Workout in progress{% if active_session_name %}: {{ active_session_name }}{% endif %}</h2>
-                    <p id="session-duration" class="session-status" data-elapsed="{{ active_session_duration }}" data-finished="{{ 'true' if active_session_finished else 'false' }}" data-started="{{ 'true' if active_session_started else 'false' }}">Duration: --:--</p>
-                    <button id="start-workout" type="button" onclick="startWorkoutClock()" class="px-3 py-2 rounded-lg bg-emerald-700 text-sm text-white">Start workout</button>
-                    <p id="routine-target" class="hidden w-full text-sm text-emerald-300" role="status"></p>
-                    <ul id="routine-set-checklist" class="hidden w-full grid grid-cols-1 sm:grid-cols-2 gap-2" aria-label="Routine set completion"></ul>
-                    <p id="routine-checklist-summary" class="hidden w-full text-xs text-slate-400"></p>
-                    <button id="next-routine-exercise" type="button" onclick="advanceRoutine()" class="hidden px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Next routine exercise</button>
-                </div>
-                {% if active_session_id and active_session_sets and not active_session_finished %}
-                <form id="session-structure-form" action="{{ url_for('main.update_session_structure') }}" method="POST" class="flex flex-wrap items-center justify-between gap-2">
-                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
-                    <input type="hidden" name="exercise_order">
-                    <input type="hidden" name="superset_groups">
-                    <span class="text-xs text-slate-400">Reorder exercises or assign matching superset groups.</span>
-                    <button type="submit" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Save workout structure</button>
-                </form>
-                <form id="finish-session-form" action="{{ url_for('main.finish_session') }}" method="POST" class="flex justify-end">
-                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
-                    <input type="hidden" name="elapsed_seconds" value="{{ active_session_duration }}">
-                    <button type="submit" class="px-3 py-2 border border-slate-700 rounded-lg text-sm">Finish workout</button>
-                </form>
-                {% endif %}
-                <div id="active-session-exercises" class="space-y-3">
-                    {% for group in active_session_groups %}
-                    <div class="active-exercise-group border border-slate-800 rounded-xl p-3" data-exercise="{{ group.exercise }}">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <h3 class="font-medium text-emerald-400">{{ group.exercise }}{% if group.superset_group %} <span class="text-xs text-slate-400">· Superset {{ group.superset_group }}</span>{% endif %}</h3>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="move-exercise-up rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} up">↑</button>
-                                <button type="button" class="move-exercise-down rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} down">↓</button>
-                                <select class="exercise-superset form-control !mt-0 !w-auto !py-1 text-xs" aria-label="Superset group for {{ group.exercise }}">
-                                    <option value="" {% if not group.superset_group %}selected{% endif %}>No superset</option>
-                                    {% for superset in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ superset }}" {% if group.superset_group == superset %}selected{% endif %}>Group {{ superset }}</option>{% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <ul class="mt-2 space-y-1 text-sm text-slate-300">
-                            {% for item in group.sets %}
-                            {% set set = item.workout %}
-                            <li>
-                                {% if set.get('set_type') == 'cardio' %}
-                                    Cardio{% if set.get('distance') %} · {{ set.distance }} {{ set.get('distance_unit', 'km') }}{% endif %}{% if set.get('duration') %} · {{ set.duration }} min{% endif %}
-                                {% else %}
-                                    {{ set.get('set_type', 'working')|title }} · {{ set.weight }} {{ set.get('unit', 'kg') }} × {{ set.reps }}{% if set.get('rpe') %} · RPE {{ set.rpe }}{% endif %}
-                                {% endif %}
-                                {% if set.get('notes') %} — {{ set.notes }}{% endif %}
-                                <details class="mt-2">
-                                    <summary class="cursor-pointer text-emerald-500">Edit set</summary>
-                                    <form id="edit-active-set-{{ item.index }}" action="{{ url_for('main.edit_workout', index=item.index) }}" method="POST" class="active-edit-form mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <input type="hidden" name="date" value="{{ set.date }}">
-                                        <input type="hidden" name="session_name" value="{{ set.get('session_name', active_session_name) }}">
-                                        <label class="field-label">Category
-                                            <select name="muscle" class="form-control" onchange="updateEditExercises({{ item.index }})">
-                                                {% for category in exercises.keys() %}<option value="{{ category }}" {% if category == set.muscle %}selected{% endif %}>{{ category }}</option>{% endfor %}
-                                            </select>
-                                        </label>
-                                        <label class="field-label">Exercise
-                                            <select name="exercise" class="form-control">
-                                                {% for exercise in exercises.get(set.muscle, []) %}<option value="{{ exercise }}" {% if exercise == set.exercise %}selected{% endif %}>{{ exercise }}</option>{% endfor %}
-                                            </select>
-                                        </label>
-                                        <label class="field-label">Set type
-                                            <select name="set_type" class="form-control" onchange="toggleEditCardioFields('{{ item.index }}', true)">
-                                                {% for type, label in [('working', 'Working set'), ('warmup', 'Warm-up'), ('drop', 'Drop set'), ('failure', 'To failure'), ('cardio', 'Cardio')] %}
-                                                <option value="{{ type }}" {% if set.get('set_type', 'working') == type %}selected{% endif %}>{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </label>
-                                        <div class="edit-strength-fields contents">
-                                            <label class="field-label">Weight<input type="number" name="weight" step="0.5" min="0" value="{{ set.weight }}" class="form-control"></label>
-                                            <label class="field-label">Unit<select name="unit" class="form-control"><option value="kg" {% if set.get('unit', 'kg') == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if set.get('unit') == 'lb' %}selected{% endif %}>lb</option></select></label>
-                                            <label class="field-label">Reps<input type="number" name="reps" min="1" value="{{ set.reps }}" class="form-control"></label>
-                                            <label class="field-label">RPE<input type="number" name="rpe" min="1" max="10" value="{{ set.rpe }}" class="form-control"></label>
-                                        </div>
-                                        <div class="edit-cardio-fields contents hidden">
-                                            <label class="field-label">Distance<input type="number" name="distance" min="0" step="0.1" value="{{ set.get('distance', '') }}" class="form-control"></label>
-                                            <label class="field-label">Distance unit<select name="distance_unit" class="form-control"><option value="km" {% if set.get('distance_unit', 'km') == 'km' %}selected{% endif %}>km</option><option value="mi" {% if set.get('distance_unit') == 'mi' %}selected{% endif %}>mi</option></select></label>
-                                            <label class="field-label">Duration (min)<input type="number" name="duration" min="1" value="{{ set.get('duration', '') }}" class="form-control"></label>
-                                        </div>
-                                        <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ set.get('notes', '') }}</textarea></label>
-                                        <button type="submit" class="sm:col-span-2 px-4 py-2 bg-emerald-600 text-white rounded-lg">Save set</button>
-                                    </form>
-                                    <form action="{{ url_for('main.delete_workout', index=item.index) }}" method="POST" class="mt-2" onsubmit="return confirm('Delete this set?')">
-                                        <button type="submit" class="text-rose-500 text-sm">Delete set</button>
-                                    </form>
-                                </details>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    {% else %}
-                    <p class="text-sm text-slate-400">Sets you log in this session will appear here.</p>
-                    {% endfor %}
-                </div>
-            </div>
+        {% include "sections/library.html" %}
 
-            <div id="exercise-history-panel" class="workspace-card exercise-history-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                <h2 class="text-lg font-semibold text-emerald-500">Exercise history &amp; personal records</h2>
-                <p id="exercise-record-summary" class="text-sm text-slate-300"></p>
-                <ul id="exercise-history-list" class="space-y-2 text-sm text-slate-400"></ul>
-                <button type="button" onclick="copyPreviousSet()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm">Copy previous set</button>
-                <div id="progression-suggestion" class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                    <div>
-                        <h3 class="font-medium text-emerald-400">Next-session suggestion</h3>
-                        <p id="progression-summary" class="mt-1 text-sm text-slate-400">Log strength sets to get a suggested next target.</p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="field-label">Rep goal
-                            <input type="number" id="progression-rep-goal" min="1" max="30" value="12" class="form-control">
-                        </label>
-                        <label class="field-label">Weight goal (optional)
-                            <input type="number" id="progression-weight-goal" min="0" step="0.5" placeholder="No limit" class="form-control">
-                        </label>
-                    </div>
-                    <button type="button" onclick="applyProgressionSuggestion()" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Use suggested target</button>
-                </div>
-            </div>
+        {% include "sections/history.html" %}
 
-            <div class="workspace-card rest-timer-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <h3 class="text-lg font-semibold mb-2 text-emerald-500">⏱️ Rest Timer</h3>
-                <div class="flex flex-wrap items-center gap-2 sm:gap-4">
-                    <select id="timer-duration" class="form-control w-auto">
-                        <option value="30">30 Seconds</option>
-                        <option value="45">45 Seconds</option>
-                        <option value="60" selected>60 Seconds</option>
-                        <option value="90">90 Seconds</option>
-                        <option value="120">120 Seconds</option>
-                        <option value="180">180 Seconds</option>
-                    </select>
-                    <button type="button" id="timer-start" onclick="startTimer()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-medium transition">Start Timer</button>
-                    <button type="button" id="timer-stop" onclick="stopTimer()" disabled class="px-6 py-2 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition">Stop Timer</button>
-                </div>
-                <div id="timer-display" role="status" aria-live="polite" class="mt-4 text-2xl font-mono text-emerald-500">Timer ready</div>
-                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-800 pt-4">
-                    <label class="field-label">Default rest for set type
-                        <select id="set-type-rest-preset" class="form-control">
-                            {% for seconds in [30, 45, 60, 90, 120, 180] %}<option value="{{ seconds }}">{{ seconds }} seconds</option>{% endfor %}
-                        </select>
-                    </label>
-                    <div class="flex flex-wrap items-end gap-2">
-                        <button type="button" onclick="saveRestPreset('set-type')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save set-type default</button>
-                        <button type="button" onclick="saveRestPreset('exercise')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save for exercise</button>
-                    </div>
-                    <label class="sm:col-span-2 flex items-center gap-2 text-sm text-slate-300">
-                        <input type="checkbox" id="auto-start-rest" class="accent-emerald-500">
-                        Start the rest timer automatically after logging a set
-                    </label>
-                    <fieldset class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-slate-800 pt-3">
-                        <legend class="field-label mb-1">Timer alerts</legend>
-                        <label class="flex items-center gap-2 text-sm text-slate-300">
-                            <input type="checkbox" id="timer-sound-enabled" class="accent-emerald-500" checked>
-                            Sound when rest ends
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-300">
-                            <input type="checkbox" id="timer-vibration-enabled" class="accent-emerald-500" checked>
-                            Vibrate when supported
-                        </label>
-                    </fieldset>
-                    <p id="rest-preset-status" class="sm:col-span-2 text-xs text-slate-500" aria-live="polite"></p>
-                </div>
-            </div>
-        </section>
+        {% include "sections/progress.html" %}
 
-        <section id="section-library" role="tabpanel" aria-labelledby="tab-library" tabindex="0" class="tab-panel space-y-6 hidden">
-            <div class="grid grid-cols-1 md:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.6fr)] gap-6 items-start">
-                <div class="space-y-6">
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                        <h2 class="text-lg font-semibold text-emerald-500">Add Exercise</h2>
-                        <form action="{{ url_for('main.add_library_exercise') }}" method="POST" class="space-y-4">
-                            <label class="field-label">Category
-                                <select name="muscle" required class="form-control">
-                                    {% for group in exercises.keys() %}<option value="{{ group }}">{{ group }}</option>{% endfor %}
-                                </select>
-                            </label>
-                            <label class="field-label">Exercise name
-                                <input type="text" name="exercise_name" required maxlength="100" placeholder="e.g., Cable Crossovers" class="form-control">
-                            </label>
-                            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl transition">Add Exercise</button>
-                        </form>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                        <h2 class="text-lg font-semibold text-emerald-500">Manage Categories</h2>
-                        <form action="{{ url_for('main.add_category') }}" method="POST" class="flex gap-2">
-                            <input type="text" name="category" required maxlength="60" placeholder="New category" class="form-control">
-                            <button type="submit" class="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Add</button>
-                        </form>
-                        <div class="space-y-2">
-                            {% for group, ex_list in exercises.items() %}
-                            <div class="flex justify-between items-center gap-3 border border-slate-800 rounded-xl p-3 bg-slate-950">
-                                <span class="font-medium">{{ group }} <span class="text-slate-400 text-sm">({{ ex_list|length }})</span></span>
-                                {% if not ex_list %}
-                                <form action="{{ url_for('main.delete_category') }}" method="POST" onsubmit="return confirm('Delete this empty category?')">
-                                    <input type="hidden" name="category" value="{{ group }}">
-                                    <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                        <h2 class="text-lg font-semibold text-emerald-500">Restore Library</h2>
-                        <p class="text-sm text-slate-400">Replace your current exercise categories and exercises with the original defaults. Workout history will be kept.</p>
-                        <form action="{{ url_for('main.restore_exercise_library') }}" method="POST" onsubmit="return confirm('Replace your entire exercise library with the default library? Your custom exercises and categories will be removed. Workout history will be kept.')">
-                            <button type="submit" class="w-full px-4 py-2.5 bg-rose-700 hover:bg-rose-600 text-white font-medium rounded-xl">Restore Default Exercise Library</button>
-                        </form>
-                    </div>
-                </div>
+        {% include "sections/routines.html" %}
 
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                    <h2 class="text-lg font-semibold text-emerald-500">Exercise Library</h2>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label class="field-label">Search exercises
-                            <input type="search" id="library-search" oninput="filterExerciseLibrary()" placeholder="Type an exercise name..." class="form-control">
-                        </label>
-                        <label class="field-label">Filter by category
-                            <select id="library-category-filter" onchange="filterExerciseLibrary()" class="form-control">
-                                <option value="">All categories</option>
-                                {% for group in exercises.keys() %}<option value="{{ group }}">{{ group }}</option>{% endfor %}
-                            </select>
-                        </label>
-                    </div>
-                    <p id="library-result-count" class="text-sm text-slate-400" aria-live="polite"></p>
-                    <div class="space-y-5">
-                        <p id="library-no-results" class="hidden rounded-xl border border-slate-800 p-4 text-center text-slate-400">No exercises match these filters.</p>
-                        {% for group, ex_list in exercises.items() %}
-                        <div class="library-category" data-category="{{ group }}">
-                            <h3 class="font-semibold text-emerald-500 mb-2">{{ group }}</h3>
-                            {% if ex_list %}
-                            <div class="space-y-2">
-                                {% for exercise in ex_list %}
-                                <div class="library-exercise border border-slate-800 rounded-xl p-3 bg-slate-950 space-y-2" data-exercise="{{ exercise }}" data-category="{{ group }}">
-                                    <form action="{{ url_for('main.update_library_exercise') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
-                                        <input type="hidden" name="old_muscle" value="{{ group }}">
-                                        <input type="hidden" name="old_name" value="{{ exercise }}">
-                                        <input type="text" name="exercise_name" value="{{ exercise }}" required maxlength="100" aria-label="Exercise name" class="form-control">
-                                        <select name="muscle" aria-label="Exercise category" class="form-control">
-                                            {% for category in exercises.keys() %}
-                                            <option value="{{ category }}" {% if category == group %}selected{% endif %}>{{ category }}</option>
-                                            {% endfor %}
-                                        </select>
-                                        <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save</button>
-                                    </form>
-                                    <form action="{{ url_for('main.delete_library_exercise') }}" method="POST" onsubmit="return confirm('Delete {{ exercise }} from the library?')">
-                                        <input type="hidden" name="muscle" value="{{ group }}">
-                                        <input type="hidden" name="exercise_name" value="{{ exercise }}">
-                                        <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete exercise</button>
-                                    </form>
-                                </div>
-                                {% endfor %}
-                            </div>
-                            {% else %}<p class="text-sm text-slate-400">No exercises in this category.</p>{% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </section>
+        {% include "sections/measurements.html" %}
+        {% include "sections/nutrition.html" %}
 
-        <section id="section-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" class="tab-panel space-y-6 hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                <div class="flex flex-wrap justify-between items-center gap-3">
-                    <h2 class="text-lg font-semibold text-emerald-500">Workout Logs</h2>
-                    <div class="flex flex-wrap gap-2">
-                        <a href="{{ url_for('main.export_workouts_csv') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">Export workout CSV</a>
-                        <a href="{{ url_for('main.export_backup') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">📥 Export Backup</a>
-                    </div>
-                </div>
-                <form action="{{ url_for('main.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
-                    <input type="hidden" name="tab" value="history">
-                    <div class="field-label">
-                        <label for="history-date">Show workouts for</label>
-                        <div class="date-picker-control">
-                            <input type="date" id="history-date" name="date" value="{{ selected_date }}" class="form-control">
-                            <button type="button" class="date-picker-button" onclick="openDatePicker('history-date')" aria-label="Open history date picker">📅</button>
-                        </div>
-                    </div>
-                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Filter</button>
-                    {% if selected_date %}<a href="{{ url_for('main.index', tab='history') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl">Show all</a>{% endif %}
-                </form>
-                <details id="history-calendar" class="history-disclosure bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3" open>
-                    <summary class="history-disclosure-summary">
-                        <span>Activity calendar</span>
-                        <span class="history-disclosure-detail">{{ calendar_month }}</span>
-                    </summary>
-                    <div class="pt-3 space-y-3">
-                        <div class="flex flex-wrap justify-between items-center gap-3">
-                            <h3 class="font-semibold text-emerald-500">{{ calendar_month }}</h3>
-                            <div class="flex gap-2">
-                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=previous_month) }}" aria-label="Previous month">←</a>
-                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm" href="{{ url_for('main.index', tab='history') }}">This month</a>
-                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=next_month) }}" aria-label="Next month">→</a>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
-                            {% for weekday in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<div class="py-1">{{ weekday }}</div>{% endfor %}
-                            {% for day in calendar_days %}
-                                {% if day.date %}
-                                <a href="{{ url_for('main.index', tab='history', date=day.date, month=calendar_month_value) }}" class="calendar-day rounded-lg p-1 sm:p-2 {{ 'calendar-day-active' if day.count else '' }} {{ 'calendar-day-selected' if day.date == selected_date else '' }}" title="{{ day.count }} set(s)" aria-label="{{ day.date }}: {{ day.count }} set(s)">
-                                    <span>{{ day.day }}</span>{% if day.count %}<span class="calendar-day-count block text-[0.65rem]">{{ day.count }} sets</span>{% endif %}
-                                </a>
-                                {% else %}<div></div>{% endif %}
-                            {% endfor %}
-                        </div>
-                    </div>
-                </details>
-                <form action="{{ url_for('main.import_backup') }}" method="POST" enctype="multipart/form-data" class="p-4 border border-dashed border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
-                    <input type="file" name="backup_file" accept=".json,application/json" required class="text-sm text-slate-400">
-                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium">Restore Backup</button>
-                </form>
-                <div class="space-y-5">
-                    {% for group in workout_groups %}
-                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                        <div class="flex flex-wrap justify-between items-center gap-2">
-                            <h3 class="font-semibold text-emerald-500">{{ group.name }} <span class="text-sm font-normal text-slate-400">· {{ group.date }}</span></h3>
-                            <span class="text-sm text-slate-400">{{ group.sets|length }} set{% if group.sets|length != 1 %}s{% endif %}{% if group.duration %} · {{ '%02d'|format(group.duration // 60) }}:{{ '%02d'|format(group.duration % 60) }}{% endif %}</span>
-                        </div>
-                        <details class="history-workout-actions border-t border-slate-800 pt-3" open>
-                            <summary class="history-disclosure-summary">Workout actions <span class="history-disclosure-detail">Repeat, edit, or delete</span></summary>
-                            <div class="mt-3 space-y-3">
-                                <form action="{{ url_for('main.duplicate_session') }}" method="POST" class="history-repeat-form flex flex-wrap items-end gap-2">
-                                    <input type="hidden" name="session_id" value="{{ group.id }}">
-                                    <label class="field-label">Repeat workout on
-                                        <input type="date" name="date" required value="{{ today }}" class="form-control">
-                                    </label>
-                                    <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Repeat workout</button>
-                                </form>
-                                <details class="border-t border-slate-800 pt-3">
-                                    <summary class="cursor-pointer text-sm text-emerald-500 hover:text-emerald-400">Edit workout name or date</summary>
-                                    <form action="{{ url_for('main.edit_session') }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <input type="hidden" name="session_id" value="{{ group.id }}">
-                                <input type="hidden" name="original_date" value="{{ group.date }}">
-                                <label class="field-label">Workout name
-                                    <input type="text" name="session_name" maxlength="100" value="{{ group.name }}" class="form-control">
-                                </label>
-                                <label class="field-label">Workout date
-                                    <input type="date" name="date" required value="{{ group.date }}" class="form-control">
-                                </label>
-                                <button type="submit" class="self-end px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">Save workout</button>
-                                    </form>
-                                </details>
-                                <form action="{{ url_for('main.delete_session') }}" method="POST" class="history-delete-form flex justify-end" onsubmit="return confirm('Delete this entire workout and all {{ group.sets|length }} of its sets? This cannot be undone.')">
-                                    <input type="hidden" name="session_id" value="{{ group.id }}">
-                                    <input type="hidden" name="date" value="{{ group.date }}">
-                                    <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete entire workout</button>
-                                </form>
-                            </div>
-                        </details>
-                        {% for item in group.sets|reverse %}
-                        {% set log = item.workout %}
-                        <div class="border-t border-slate-800 pt-3">
-                            <div class="flex flex-wrap justify-between items-center gap-3">
-                                <div>
-                                    <span class="font-medium">{{ log.exercise }}</span>
-                                    {% if log.get('superset_group') %}<span class="text-xs text-emerald-400"> · Superset {{ log.superset_group }}</span>{% endif %}
-                                    {% if log.get('set_type') == 'cardio' %}
-                                    <span class="text-sm text-slate-400"> · {{ log.muscle }} · Cardio{% if log.get('distance') %} · {{ log.distance }} {{ log.get('distance_unit', 'km') }}{% endif %}{% if log.get('duration') %} · {{ log.duration }} min{% endif %}</span>
-                                    {% else %}
-                                    <span class="text-sm text-slate-400"> · {{ log.muscle }} · {{ log.get('set_type', 'working')|title }} · {{ log.weight }} {{ log.get('unit', 'kg') }} × {{ log.reps }} · RPE {{ log.rpe }}</span>
-                                    {% endif %}
-                                    {% if log.get('notes') %}<p class="mt-1 text-sm text-slate-400">{{ log.notes }}</p>{% endif %}
-                                </div>
-                                <div class="flex gap-3">
-                                    <button type="button" class="text-emerald-500 hover:text-emerald-400 text-sm" onclick="toggleEditSet({{ item.index }})">Edit</button>
-                                    <form action="{{ url_for('main.delete_workout', index=item.index) }}" method="POST" onsubmit="return confirm('Delete this set?')">
-                                        <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
-                                    </form>
-                                    <button type="button" class="text-sm text-slate-300 hover:text-white" onclick="copyWorkoutSet({{ item.index }})">Copy set to logger</button>
-                                </div>
-                            </div>
-                            <form id="edit-set-{{ item.index }}" action="{{ url_for('main.edit_workout', index=item.index) }}" method="POST" class="edit-set-form hidden mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                <label class="field-label">Date<input type="date" name="date" required value="{{ log.date }}" class="form-control"></label>
-                                <label class="field-label">Workout name<input type="text" name="session_name" maxlength="100" value="{{ log.get('session_name', group.name) }}" class="form-control"></label>
-                                <label class="field-label">Category
-                                    <select name="muscle" class="form-control" onchange="updateEditExercises({{ item.index }})">
-                                        {% for category in exercises.keys() %}<option value="{{ category }}" {% if category == log.muscle %}selected{% endif %}>{{ category }}</option>{% endfor %}
-                                    </select>
-                                </label>
-                                <label class="field-label">Exercise
-                                    <select name="exercise" class="form-control">
-                                        {% for exercise in exercises.get(log.muscle, []) %}<option value="{{ exercise }}" {% if exercise == log.exercise %}selected{% endif %}>{{ exercise }}</option>{% endfor %}
-                                    </select>
-                                </label>
-                                <label class="field-label">Set type
-                                    <select name="set_type" class="form-control" onchange="toggleEditCardioFields({{ item.index }})">
-                                        {% for type, label in [('working', 'Working set'), ('warmup', 'Warm-up'), ('drop', 'Drop set'), ('failure', 'To failure'), ('cardio', 'Cardio')] %}
-                                        <option value="{{ type }}" {% if log.get('set_type', 'working') == type %}selected{% endif %}>{{ label }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </label>
-                                <div id="edit-strength-{{ item.index }}" class="edit-strength-fields contents">
-                                <label class="field-label">Weight<input type="number" name="weight" step="0.5" min="0" value="{{ log.weight }}" class="form-control"></label>
-                                <label class="field-label">Reps<input type="number" name="reps" min="1" value="{{ log.reps }}" class="form-control"></label>
-                                <label class="field-label">RPE<input type="number" name="rpe" min="1" max="10" value="{{ log.rpe }}" class="form-control"></label>
-                                </div>
-                                <label class="field-label">Unit<select name="unit" class="form-control"><option value="kg" {% if log.get('unit', 'kg') == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if log.get('unit') == 'lb' %}selected{% endif %}>lb</option></select></label>
-                                <div id="edit-cardio-{{ item.index }}" class="edit-cardio-fields contents hidden">
-                                    <label class="field-label">Distance<input type="number" name="distance" min="0" step="0.1" value="{{ log.get('distance', '') }}" class="form-control"></label>
-                                    <label class="field-label">Distance unit<select name="distance_unit" class="form-control"><option value="km" {% if log.get('distance_unit', 'km') == 'km' %}selected{% endif %}>km</option><option value="mi" {% if log.get('distance_unit') == 'mi' %}selected{% endif %}>mi</option></select></label>
-                                    <label class="field-label">Duration (min)<input type="number" name="duration" min="1" value="{{ log.get('duration', '') }}" class="form-control"></label>
-                                </div>
-                                <label class="field-label sm:col-span-2 lg:col-span-4">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ log.get('notes', '') }}</textarea></label>
-                                <div class="sm:col-span-2 lg:col-span-4 flex gap-2">
-                                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">Save changes</button>
-                                    <button type="button" onclick="toggleEditSet({{ item.index }})" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
-                        {% endfor %}
-                    </article>
-                    {% else %}
-                    <div class="empty-state">
-                        <span class="empty-state-icon" aria-hidden="true">◷</span>
-                        <h3>{% if selected_date %}No workouts on {{ selected_date }}{% else %}Your workout history starts here{% endif %}</h3>
-                        <p>{% if selected_date %}Try another date or start logging a workout.{% else %}Log your first set and it will appear here, grouped by workout date and session.{% endif %}</p>
-                        <button type="button" class="empty-state-action" onclick="switchTab('log')">Log a workout</button>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </section>
-
-        <section id="section-progress" role="tabpanel" aria-labelledby="tab-progress" tabindex="0" class="tab-panel space-y-6 hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-                <div>
-                    <h2 class="text-lg font-semibold text-emerald-500">Exercise Progress</h2>
-                    <p class="text-sm text-slate-400 mt-1">Track strength records and cardio distance or duration trends.</p>
-                </div>
-                <section id="weekly-dashboard" class="weekly-dashboard rounded-xl border border-emerald-900/50 bg-emerald-950/30 p-4" aria-labelledby="weekly-dashboard-title">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <h3 id="weekly-dashboard-title" class="font-medium text-emerald-300">This week at a glance</h3>
-                            <p class="text-xs text-slate-400">Rolling 7-day training summary</p>
-                        </div>
-                        <span class="text-xs text-slate-400">{{ training_insights.recovery_note }}</span>
-                    </div>
-                    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <div class="weekly-stat"><strong>{{ training_insights.training_days }}</strong><span>training days</span></div>
-                        <div class="weekly-stat"><strong>{{ training_insights.weekly_sets }}</strong><span>working sets</span></div>
-                        <div class="weekly-stat"><strong>{{ training_insights.recent_week_volume }}</strong><span>kg × reps</span></div>
-                        <div class="weekly-stat"><strong>{{ training_insights.streak }}</strong><span>day streak</span></div>
-                    </div>
-                    <p class="mt-3 text-xs text-slate-400">Prior 3-week average: {{ training_insights.prior_week_average }} kg × reps</p>
-                </section>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <label class="field-label">Exercise
-                        <select id="progress-exercise" onchange="renderProgressChart()" class="form-control">
-                            {% for exercise in exercise_names %}<option value="{{ exercise }}">{{ exercise }}</option>{% endfor %}
-                        </select>
-                    </label>
-                    <label class="field-label">Metric
-                        <select id="progress-metric" onchange="renderProgressChart()" class="form-control">
-                            <option value="weight">Best weight</option><option value="reps">Best reps</option><option value="volume">Total volume</option>
-                            <option value="estimated-1rm">Estimated 1RM (Epley)</option>
-                            <option value="cardio-distance">Cardio distance</option><option value="cardio-duration">Cardio duration</option>
-                        </select>
-                    </label>
-                    <label class="field-label">Date range
-                        <select id="progress-range" onchange="renderProgressChart()" class="form-control">
-                            <option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option>
-                        </select>
-                    </label>
-                </div>
-                <p id="progress-records" class="text-sm text-slate-300" aria-live="polite"></p>
-                <p id="progress-summary" class="text-sm text-slate-300" aria-live="polite"></p>
-                <div id="progress-chart-content">
-                    <div class="chart-container"><svg id="progress-chart" viewBox="0 0 800 300" role="img" aria-label="Exercise progress chart" aria-describedby="progress-summary progress-chart-data"></svg></div>
-                    <ul id="progress-chart-data" class="chart-data-list" aria-label="Chart data points"></ul>
-                </div>
-                <div id="progress-empty" class="empty-state hidden">
-                    <span class="empty-state-icon" aria-hidden="true">↗</span>
-                    <h3>No progress data for this view yet</h3>
-                    <p id="progress-empty-message">Log a few workouts to see exercise trends here.</p>
-                    <button type="button" class="empty-state-action" onclick="switchTab('log')">Log a workout</button>
-                </div>
-                <details id="progress-more-details" class="progress-details">
-                    <summary>
-                        <span><strong>More progress insights</strong><small>Personal records, muscle volume, and training consistency</small></span>
-                    </summary>
-                    <div class="progress-details-content">
-                        <section id="personal-records-section" class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="personal-records-title">
-                            <h3 id="personal-records-title" class="font-medium text-emerald-400">Personal record milestones</h3>
-                            <ul id="personal-record-history" class="mt-2 space-y-2 text-sm text-slate-300"></ul>
-                            <p id="personal-record-empty" class="mt-2 text-sm text-slate-500">Log more workouts to build a milestone history.</p>
-                        </section>
-                        <section class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="muscle-volume-heading">
-                            <div class="flex flex-wrap items-end justify-between gap-3">
-                                <div><h3 id="muscle-volume-heading" class="font-medium text-emerald-400">Weekly muscle volume</h3>
-                                    <p class="mt-1 text-sm text-slate-400">Working and drop sets only; weights are normalized to kg × reps.</p></div>
-                                <label class="field-label">Muscle group
-                                    <select id="muscle-volume-category" onchange="renderMuscleVolumeChart()" class="form-control">
-                                        {% for category in exercises.keys() %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
-                                    </select>
-                                </label>
-                            </div>
-                            <p id="muscle-volume-summary" class="mt-3 text-sm text-slate-300" aria-live="polite"></p>
-                            <div class="chart-container"><svg id="muscle-volume-chart" viewBox="0 0 800 300" role="img" aria-label="Weekly muscle volume chart" aria-describedby="muscle-volume-summary muscle-volume-data"></svg></div>
-                            <ul id="muscle-volume-data" class="chart-data-list" aria-label="Weekly muscle volume data"></ul>
-                        </section>
-                        <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3" aria-labelledby="training-insights-title">
-                            <div>
-                                <h3 id="training-insights-title" class="font-medium text-emerald-400">Training insights</h3>
-                                <p id="training-consistency" class="mt-1 text-sm text-slate-300" aria-live="polite">
-                                    Last 7 days: {{ training_insights.training_days }} training day(s) · Current streak: {{ training_insights.streak }} day(s)
-                                </p>
-                                <p class="mt-1 text-sm text-slate-400">{{ training_insights.recovery_note }}</p>
-                            </div>
-                            <div>
-                                <h4 class="text-sm font-medium text-slate-300">Last 7 days: strength volume by muscle</h4>
-                                {% if training_insights.weekly_volume %}
-                                <ul class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {% for item in training_insights.weekly_volume %}
-                                    <li class="flex justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2 text-sm">
-                                        <span>{{ item.muscle }} <span class="text-slate-500">({{ item.sets }} sets)</span></span>
-                                        <span class="font-medium text-emerald-400">{{ item.volume }} kg × reps</span>
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                                {% else %}<p class="mt-2 text-sm text-slate-500">No strength sets recorded in the last 7 days.</p>{% endif %}
-                            </div>
-                        </section>
-                    </div>
-                </details>
-            </div>
-        </section>
-
-        <section id="section-routines" role="tabpanel" aria-labelledby="tab-routines" tabindex="0" class="tab-panel space-y-6 hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-                <div>
-                    <h2 class="text-lg font-semibold text-emerald-500">Workout Routines</h2>
-                    <p class="mt-1 text-sm text-slate-400">Build editable routines with exercise order, target sets, reps, weight, and rest time.</p>
-                </div>
-                <form action="{{ url_for('main.save_routine') }}" method="POST" class="routine-editor space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4" data-initial="[]">
-                    <input type="hidden" name="mode" value="builder">
-                    <input type="hidden" name="exercises_json">
-                    <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control"></label>
-                    <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
-                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Create routine</button>
-                    </div>
-                </form>
-                <form action="{{ url_for('main.save_routine') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
-                    <input type="hidden" name="session_id" id="routine-session-id" value="{{ active_session_id }}">
-                    <input type="hidden" name="session_name" id="routine-session-name">
-                    <label class="field-label">Save current session as
-                        <input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control">
-                    </label>
-                    <p class="text-sm text-slate-400">Log at least one set in the active session first.</p>
-                    <button type="submit" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Save routine</button>
-                </form>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
-                    <a href="{{ url_for('main.export_routines') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-sm hover:bg-slate-700">Export routines JSON</a>
-                    <form action="{{ url_for('main.import_routines') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2" onsubmit="return confirm('Importing routines replaces your current routine list. Continue?')">
-                        <input type="file" name="routines_file" accept=".json,application/json" required class="min-w-0 flex-1 text-xs text-slate-400">
-                        <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Import routines</button>
-                    </form>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {% for routine in routines %}
-                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                        <div class="flex items-center justify-between gap-2">
-                            <h3 class="font-medium text-emerald-400">{{ routine.name }}</h3>
-                            <button type="button" class="routine-comparison-toggle rounded-lg border border-slate-700 px-3 py-1.5 text-sm" data-routine-id="{{ routine.id }}">Compare sessions</button>
-                        </div>
-                        <div class="routine-comparison hidden rounded-lg border border-slate-800 p-3 text-sm text-slate-300" data-routine-id="{{ routine.id }}" aria-live="polite"></div>
-                        <form action="{{ url_for('main.update_routine', routine_id=routine.id) }}" method="POST" class="routine-editor space-y-3" data-initial="{{ routine.exercises|tojson|forceescape }}">
-                            <input type="hidden" name="exercises_json">
-                            <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required value="{{ routine.name }}" class="form-control"></label>
-                            <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
-                            <div class="flex flex-wrap gap-2">
-                                <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
-                                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Save routine</button>
-                                <button type="button" data-start-routine="{{ routine.id }}" class="start-routine-button px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg">Start routine now</button>
-                            </div>
-                        </form>
-                        <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
-                            <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete routine</button>
-                        </form>
-                    </article>
-                    {% else %}
-                    <p class="text-sm text-slate-400">No saved routines yet. Create one above or save an active workout session.</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </section>
-
-        <section id="section-measurements" role="tabpanel" aria-labelledby="tab-measurements" tabindex="0" class="tab-panel space-y-6 hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-                <div>
-                    <h2 class="text-lg font-semibold text-emerald-500">Body Measurements</h2>
-                    <p class="mt-1 text-sm text-slate-400">Record body weight, measurements, and notes over time.</p>
-                    <a href="{{ url_for('main.export_measurements_csv') }}" class="mt-3 inline-block rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm">Export measurements CSV</a>
-                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
-                        <a href="{{ url_for('main.export_goals') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-sm hover:bg-slate-700">Export goals JSON</a>
-                        <form action="{{ url_for('main.import_goals') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2" onsubmit="return confirm('Importing goals replaces your current goal list. Continue?')">
-                            <input type="file" name="goals_file" accept=".json,application/json" required class="min-w-0 flex-1 text-xs text-slate-400">
-                            <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Import goals</button>
-                        </form>
-                    </div>
-                </div>
-                <div>
-                    <label class="field-label">Chart
-                        <select id="measurement-metric" onchange="renderMeasurementChart()" class="form-control">
-                            <option value="body_weight">Body weight</option><option value="waist">Waist</option>
-                            <option value="chest">Chest</option><option value="hips">Hips</option>
-                        </select>
-                    </label>
-                    <div class="chart-container mt-3"><svg id="measurement-chart" viewBox="0 0 800 300" role="img" aria-label="Body measurement history chart" aria-describedby="measurement-chart-summary measurement-chart-data"></svg></div>
-                        <p id="measurement-chart-summary" class="text-sm text-slate-300" aria-live="polite"></p>
-                        <ul id="measurement-chart-data" class="chart-data-list" aria-label="Measurement chart data points"></ul>
-                    <p id="measurement-chart-empty" class="hidden text-center text-slate-400">No values for this measurement yet.</p>
-                </div>
-                <form action="{{ url_for('main.save_measurement') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <label class="field-label">Date<input type="date" name="date" required value="{{ today }}" class="form-control"></label>
-                    <label class="field-label">Body weight<input type="number" step="0.1" min="0" name="body_weight" placeholder="Optional" class="form-control"></label>
-                    <label class="field-label">Weight unit<select name="unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select></label>
-                    <label class="field-label">Waist (cm)<input type="number" step="0.1" min="0" name="waist" placeholder="Optional" class="form-control"></label>
-                    <label class="field-label">Chest (cm)<input type="number" step="0.1" min="0" name="chest" placeholder="Optional" class="form-control"></label>
-                    <label class="field-label">Hips (cm)<input type="number" step="0.1" min="0" name="hips" placeholder="Optional" class="form-control"></label>
-                    <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" placeholder="Optional" class="form-control"></textarea></label>
-                    <button type="submit" class="self-end px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Save measurements</button>
-                </form>
-                <div class="space-y-3">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <h3 class="font-semibold">Goals</h3>
-                    </div>
-                    <form action="{{ url_for('main.save_goal') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
-                        <label class="field-label">Metric
-                            <select name="metric" id="goal-metric" onchange="updateGoalMetricUnit()" class="form-control">
-                                <option value="body_weight">Body weight</option>
-                                <option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option>
-                            </select>
-                        </label>
-                        <label class="field-label">Target
-                            <input type="number" name="target" min="0.1" step="0.1" required class="form-control">
-                        </label>
-                        <label class="field-label">Unit
-                            <select name="unit" id="goal-unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select>
-                        </label>
-                        <label class="field-label">Goal direction
-                            <select name="direction" id="goal-direction" class="form-control"><option value="decrease">Decrease to target</option><option value="increase">Increase to target</option></select>
-                        </label>
-                        <label class="field-label">Target date (optional)
-                            <input type="date" name="target_date" class="form-control">
-                        </label>
-                        <button type="submit" class="self-end rounded-xl bg-emerald-600 px-4 py-2.5 text-white">Add goal</button>
-                    </form>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {% for goal in goals %}
-                        <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-2">
-                            <div class="flex justify-between gap-2">
-                                <strong>{{ {'body_weight': 'Body weight', 'waist': 'Waist', 'chest': 'Chest', 'hips': 'Hips'}.get(goal.metric, goal.metric) }}: {{ goal.target }} {{ goal.unit }}{% if goal.target_date %} by {{ goal.target_date }}{% endif %}</strong>
-                                <form action="{{ url_for('main.delete_goal', goal_id=goal.id) }}" method="POST" onsubmit="return confirm('Delete this goal?')">
-                                    <button type="submit" class="text-sm text-rose-500">Delete</button>
-                                </form>
-                            </div>
-                            {% if goal.current is not none %}
-                            <p class="text-sm text-slate-400">Current: {{ '%.1f'|format(goal.current) }} {{ goal.unit }} · {{ 'Goal reached' if goal.complete else goal.progress ~ '% there' }}</p>
-                            <div class="goal-progress-track" role="progressbar" aria-label="Goal progress" aria-valuenow="{{ goal.progress }}" aria-valuemin="0" aria-valuemax="100">
-                                <div class="goal-progress-fill" style="width: {{ goal.progress }}%"></div>
-                            </div>
-                            {% else %}<p class="text-sm text-slate-400">Log a measurement to start tracking this goal.</p>{% endif %}
-                        </article>
-                        {% else %}<p class="text-sm text-slate-400">No goals yet. Add a body-weight or measurement goal above.</p>{% endfor %}
-                    </div>
-                </div>
-                <div class="space-y-3">
-                    <h3 class="font-semibold">Measurement history</h3>
-                    {% for item in measurements %}
-                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
-                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                            <strong class="text-emerald-400">{{ item.date }}</strong>
-                            {% if item.body_weight %}<span>Weight: {{ item.body_weight }} {{ item.unit }}</span>{% endif %}
-                            {% if item.waist %}<span>Waist: {{ item.waist }} cm</span>{% endif %}
-                            {% if item.chest %}<span>Chest: {{ item.chest }} cm</span>{% endif %}
-                            {% if item.hips %}<span>Hips: {{ item.hips }} cm</span>{% endif %}
-                        </div>
-                        {% if item.notes %}<p class="mt-2 text-sm text-slate-400">{{ item.notes }}</p>{% endif %}
-                        <details>
-                            <summary class="cursor-pointer text-sm text-emerald-400">Edit measurement</summary>
-                            <form action="{{ url_for('main.update_measurement', measurement_id=item.id) }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                <label class="field-label">Date<input type="date" name="date" required value="{{ item.date }}" class="form-control"></label>
-                                <label class="field-label">Body weight<input type="number" step="0.1" min="0" name="body_weight" value="{{ item.body_weight }}" class="form-control"></label>
-                                <label class="field-label">Weight unit<select name="unit" class="form-control"><option value="kg" {% if item.unit == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if item.unit == 'lb' %}selected{% endif %}>lb</option></select></label>
-                                <label class="field-label">Waist (cm)<input type="number" step="0.1" min="0" name="waist" value="{{ item.waist }}" class="form-control"></label>
-                                <label class="field-label">Chest (cm)<input type="number" step="0.1" min="0" name="chest" value="{{ item.chest }}" class="form-control"></label>
-                                <label class="field-label">Hips (cm)<input type="number" step="0.1" min="0" name="hips" value="{{ item.hips }}" class="form-control"></label>
-                                <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ item.notes }}</textarea></label>
-                                <button type="submit" class="self-end px-4 py-2.5 bg-emerald-600 text-white rounded-xl">Save changes</button>
-                            </form>
-                            <form action="{{ url_for('main.delete_measurement', measurement_id=item.id) }}" method="POST" class="mt-2" onsubmit="return confirm('Delete this measurement?')">
-                                <button type="submit" class="text-sm text-rose-500">Delete measurement</button>
-                            </form>
-                        </details>
-                    </article>
-                    {% else %}<p class="text-sm text-slate-400">No measurements recorded yet.</p>{% endfor %}
-                </div>
-            </div>
-        </section>
         {% if automatic_backups %}
-        <section class="rounded-xl border border-slate-800 bg-slate-900 p-4">
-            <h2 class="font-semibold">Automatic recovery snapshots</h2>
-            <p class="my-2 text-sm text-slate-400">Snapshots are created before each save. Restoring replaces current data.</p>
+        <details class="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <summary class="cursor-pointer font-semibold">Data &amp; recovery backups <span class="text-sm font-normal text-slate-400">({{ automatic_backups|length }} available)</span></summary>
+            <p class="my-2 text-sm text-slate-400">Snapshots are created before each save. Restoring replaces current data and creates a fresh safety snapshot first.</p>
             <form action="{{ url_for('main.restore_automatic_backup') }}" method="POST" class="flex flex-wrap gap-2" onsubmit="return confirm('Restore this snapshot? Current data will be saved as a new snapshot first.')">
-                <select name="backup_name" class="form-control flex-1">
+                <label class="sr-only" for="automatic-backup-name">Recovery snapshot</label>
+                <select id="automatic-backup-name" name="backup_name" class="form-control flex-1">
                     {% for backup in automatic_backups %}<option value="{{ backup }}">{{ backup }}</option>{% endfor %}
                 </select>
-                <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded-lg">Restore snapshot</button>
+                <button type="submit" class="px-4 py-2 bg-amber-700 text-white rounded-lg">Restore selected snapshot</button>
             </form>
-        </section>
+        </details>
         {% endif %}
     </main>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="{{ url_for('static', filename='offline.js') }}"></script>
+    <script src="{{ url_for('static', filename='progress.js') }}"></script>
+    <script src="{{ url_for('static', filename='routines.js') }}"></script>
+    <script src="{{ url_for('static', filename='training.js') }}"></script>
     <script>
         window.exercisesData = {{ exercises|tojson }};
         window.progressData = {{ progress_workouts|tojson }};
@@ -909,14 +148,32 @@
         window.activeSessionRoutineId = {{ active_session_routine_id|tojson }};
         window.activeSessionFinished = {{ active_session_finished|tojson }};
         window.activeSessionStarted = {{ active_session_started|tojson }};
+        if (document.getElementById("first-run-guide") && localStorage.getItem("irontrack-dismissed-first-run") === "1") {
+            document.getElementById("first-run-guide").remove();
+        }
         const initialTab = {{ selected_tab|tojson }};
+        initializeFastLogging();
+        initializeCompactLog();
+        initializeToasts();
         initializeAccessibleNavigation();
+        initializeKeyboardShortcuts();
+        const initialMuscle = new URLSearchParams(window.location.search).get("muscle");
+        if (initialMuscle && Object.prototype.hasOwnProperty.call(window.exercisesData, initialMuscle)) {
+            document.getElementById("muscle-select").value = initialMuscle;
+        }
         updateExercises();
-        switchTab(["log", "library", "history", "progress", "routines", "measurements"].includes(initialTab) ? initialTab : "log");
+        const initialExercise = new URLSearchParams(window.location.search).get("exercise");
+        if (initialExercise && [...document.getElementById("exercise-select").options].some((option) => option.value === initialExercise)) {
+            document.getElementById("exercise-select").value = initialExercise;
+        }
+        switchTab(["log", "library", "history", "progress", "routines", "measurements", "nutrition"].includes(initialTab) ? initialTab : "log");
         initializeWorkoutSession();
         initializeWorkoutDraft();
+        initializeWorkoutNavigationGuard();
+        initializeCsrfForms();
         initializeRestPresets();
         toggleCardioFields();
+        initializeLoggerValidation();
         initializeActiveRoutine();
         document.querySelectorAll(".edit-set-form, .active-edit-form").forEach((form) => {
             toggleEditCardioFields(form.id.replace(/^edit-(?:active-)?set-/, ""));
@@ -926,17 +183,24 @@
         renderProgressChart();
         initializeProgressDetails();
         initializeHistoryLayout();
+        initializeHistorySearch();
+        initializeBulkHistorySelection();
+        initializeCsvPreview();
         renderMuscleVolumeChart();
+        renderMuscleBalanceInsight();
         initializeRoutineEditors();
         initializeRoutineComparisons();
         initializeRoutineStarts();
+        initializeRoutineSearch();
         renderMeasurementChart();
+        initializeMeasurementSearch();
         initializeOfflineSupport();
         initializeSessionStructure();
         renderQuickExercises();
         updateGoalMetricUnit();
         document.getElementById("progression-rep-goal").addEventListener("input", showExerciseHistory);
         document.getElementById("progression-weight-goal").addEventListener("input", showExerciseHistory);
+        initializeSubmitFeedback();
     </script>
 </body>
 </html>

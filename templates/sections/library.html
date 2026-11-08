@@ -1,0 +1,103 @@
+        <section id="section-library" role="tabpanel" aria-labelledby="tab-library" tabindex="0" class="tab-panel space-y-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.6fr)] gap-6 items-start">
+                <div class="space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <h2 class="text-lg font-semibold text-emerald-500">Add Exercise</h2>
+                        <form action="{{ url_for('main.add_library_exercise') }}" method="POST" class="space-y-4">
+                            <label class="field-label">Category
+                                <select name="muscle" required class="form-control">
+                                    {% for group in exercises.keys() %}<option value="{{ group }}">{{ group }}</option>{% endfor %}
+                                </select>
+                            </label>
+                            <label class="field-label">Exercise name
+                                <input type="text" name="exercise_name" required maxlength="100" placeholder="e.g., Cable Crossovers" class="form-control">
+                            </label>
+                            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl transition">Add Exercise</button>
+                        </form>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <h2 class="text-lg font-semibold text-emerald-500">Manage Categories</h2>
+                        <form action="{{ url_for('main.add_category') }}" method="POST" class="flex gap-2">
+                            <input type="text" name="category" required maxlength="60" placeholder="New category" class="form-control">
+                            <button type="submit" class="px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Add</button>
+                        </form>
+                        <div class="space-y-2">
+                            {% for group, ex_list in exercises.items() %}
+                            <div class="flex justify-between items-center gap-3 border border-slate-800 rounded-xl p-3 bg-slate-950">
+                                <span class="font-medium">{{ group }} <span class="text-slate-400 text-sm">({{ ex_list|length }})</span></span>
+                                {% if not ex_list %}
+                                <form action="{{ url_for('main.delete_category') }}" method="POST" onsubmit="return confirm('Delete this empty category?')">
+                                    <input type="hidden" name="category" value="{{ group }}">
+                                    <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
+                        <h2 class="text-lg font-semibold text-emerald-500">Restore Library</h2>
+                        <p class="text-sm text-slate-400">Replace your current exercise categories and exercises with the original defaults. Workout history will be kept.</p>
+                        <form action="{{ url_for('main.restore_exercise_library') }}" method="POST" onsubmit="return confirm('Replace your entire exercise library with the default library? Your custom exercises and categories will be removed. Workout history will be kept.')">
+                            <button type="submit" class="w-full px-4 py-2.5 bg-rose-700 hover:bg-rose-600 text-white font-medium rounded-xl">Restore Default Exercise Library</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="library-panel bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                    <h2 class="text-lg font-semibold text-emerald-500">Exercise Library</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="field-label">Search exercises
+                            <input type="search" id="library-search" oninput="filterExerciseLibrary()" placeholder="Type an exercise name..." class="form-control">
+                        </label>
+                        <label class="field-label">Filter by category
+                            <select id="library-category-filter" onchange="filterExerciseLibrary()" class="form-control">
+                                <option value="">All categories</option>
+                                {% for group in exercises.keys() %}<option value="{{ group }}">{{ group }}</option>{% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    <p id="library-result-count" class="text-sm text-slate-400" aria-live="polite"></p>
+                    <div id="library-results" class="library-results space-y-5">
+                        <p id="library-no-results" class="hidden rounded-xl border border-slate-800 p-4 text-center text-slate-400">No exercises match these filters.</p>
+                        {% for group, ex_list in exercises.items() %}
+                        <div class="library-category" data-category="{{ group }}">
+                            <h3 class="font-semibold text-emerald-500 mb-2">{{ group }}</h3>
+                            {% if ex_list %}
+                            <div class="space-y-2">
+                                {% for exercise in ex_list %}
+                                <div class="library-exercise border border-slate-800 rounded-xl p-3 bg-slate-950 space-y-2" data-exercise="{{ exercise }}" data-category="{{ group }}">
+                                    <form action="{{ url_for('main.update_library_exercise') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+                                        <input type="hidden" name="old_muscle" value="{{ group }}">
+                                        <input type="hidden" name="old_name" value="{{ exercise }}">
+                                        <input type="text" name="exercise_name" value="{{ exercise }}" required maxlength="100" aria-label="Exercise name" class="form-control">
+                                        <select name="muscle" aria-label="Exercise category" class="form-control">
+                                            {% for category in exercises.keys() %}
+                                            <option value="{{ category }}" {% if category == group %}selected{% endif %}>{{ category }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save</button>
+                                    </form>
+                                    {% set metadata = exercise_metadata.get(group, {}).get(exercise, {}) %}
+                                    <p class="text-xs text-slate-400">{{ metadata.get('movement', 'Strength') }} · Equipment: {{ metadata.get('equipment', 'General') }}</p>
+                                    <form action="{{ url_for('main.delete_library_exercise') }}" method="POST" onsubmit="return confirm('Delete {{ exercise }} from the library?')">
+                                        <input type="hidden" name="muscle" value="{{ group }}">
+                                        <input type="hidden" name="exercise_name" value="{{ exercise }}">
+                                        <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete exercise</button>
+                                    </form>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}<p class="text-sm text-slate-400">No exercises in this category.</p>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div id="library-pagination" class="library-pagination hidden" aria-label="Exercise library pages">
+                        <button type="button" id="library-previous" onclick="goToLibraryPage(window.libraryPage - 1)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Previous</button>
+                        <span id="library-page-status" class="text-sm text-slate-400" aria-live="polite"></span>
+                        <button type="button" id="library-next" onclick="goToLibraryPage(window.libraryPage + 1)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Next</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+

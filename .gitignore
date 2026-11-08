@@ -1,2 +1,14 @@
 workout_backups/
 irontrack.sqlite3
+irontrack.sqlite3-*
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+test-results/
+playwright-report/
+workout_data.json
+irontrack.corrupt.*.sqlite3
+access.json
+.env
+data/

@@ -1,23 +1,21 @@
-const CACHE_NAME = "irontrack-shell-v1";
+const CACHE_NAME = "irontrack-shell-v5";
 const APP_SHELL = [
     "/",
     "/static/app.css",
+    "/static/tailwind.css",
+    "/static/offline.js",
+    "/static/progress.js",
+    "/static/routines.js",
+    "/static/training.js",
     "/static/app.js",
     "/static/manifest.json",
     "/static/icon.svg",
+    "/static/offline.html",
 ];
-const TAILWIND_CDN = "https://cdn.tailwindcss.com/";
-
 self.addEventListener("install", (event) => {
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_NAME);
         await cache.addAll(APP_SHELL);
-        try {
-            const response = await fetch(TAILWIND_CDN, {mode: "no-cors"});
-            await cache.put(TAILWIND_CDN, response);
-        } catch (error) {
-            console.warn("Tailwind could not be cached for offline use.", error);
-        }
         await self.skipWaiting();
     })());
 });
@@ -28,6 +26,7 @@ self.addEventListener("activate", (event) => {
         await Promise.all(names
             .filter((name) => name.startsWith("irontrack-shell-") && name !== CACHE_NAME)
             .map((name) => caches.delete(name)));
+        if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
         await self.clients.claim();
     })());
 });
@@ -36,34 +35,26 @@ self.addEventListener("fetch", (event) => {
     const request = event.request;
     const url = new URL(request.url);
     if (request.method !== "GET") return;
-
-    if (request.url === TAILWIND_CDN) {
-        event.respondWith((async () => {
-            try {
-                const response = await fetch(request);
-                const cache = await caches.open(CACHE_NAME);
-                await cache.put(request, response.clone());
-                return response;
-            } catch (error) {
-                const cached = await caches.match(request);
-                if (cached) return cached;
-                throw error;
-            }
-        })());
-        return;
-    }
+    if (["/login", "/logout", "/healthz"].includes(url.pathname)) return;
 
     if (url.origin !== self.location.origin) return;
     if (request.mode === "navigate") {
         event.respondWith((async () => {
             try {
-                const response = await fetch(request);
+                const preload = await event.preloadResponse;
+                const response = preload || await fetch(request);
                 const cache = await caches.open(CACHE_NAME);
-                await cache.put("/", response.clone());
+                if (response.ok && response.headers.get("X-IronTrack-Shell") === "1") {
+                    await cache.put("/", response.clone());
+                } else if (response.redirected || url.pathname === "/logout") {
+                    await cache.delete("/");
+                }
                 return response;
             } catch (error) {
                 const cached = await caches.match("/");
                 if (cached) return cached;
+                const offline = await caches.match("/static/offline.html");
+                if (offline) return offline;
                 throw error;
             }
         })());
@@ -75,7 +66,7 @@ self.addEventListener("fetch", (event) => {
             try {
                 const response = await fetch(request);
                 const cache = await caches.open(CACHE_NAME);
-                await cache.put(request, response.clone());
+                if (response.ok) await cache.put(request, response.clone());
                 return response;
             } catch (error) {
                 const cached = await caches.match(request);
@@ -84,4 +75,8 @@ self.addEventListener("fetch", (event) => {
             }
         })());
     }
+});
+
+self.addEventListener("message", (event) => {
+    if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });

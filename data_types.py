@@ -23,6 +23,8 @@ class WorkoutEntry(TypedDict):
     superset_group: NotRequired[str]
     finished: NotRequired[bool]
     routine_id: NotRequired[str]
+    routine_slot: NotRequired[int]
+    routine_exercise: NotRequired[str]
 
 class RoutineExercise(TypedDict):
     muscle: str
@@ -41,6 +43,7 @@ class Routine(TypedDict):
     id: str
     name: str
     exercises: list[RoutineExercise]
+    schedule_days: NotRequired[list[str]]
 
 
 class Measurement(TypedDict):
@@ -69,3 +72,6 @@ class WorkoutData(TypedDict):
     routines: list[Routine]
     measurements: list[Measurement]
     goals: list[FitnessGoal]
+    settings: dict
+    nutrition: list[dict]
+    profiles: list[dict]

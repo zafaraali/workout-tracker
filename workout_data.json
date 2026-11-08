@@ -6,7 +6,8 @@
             "exercise": "Barbell Bench Press",
             "weight": "0",
             "reps": "10",
-            "rpe": "7"
+            "rpe": "7",
+            "entry_id": "legacy-set-1"
         },
         {
             "date": "2026-11-03",
@@ -14,7 +15,8 @@
             "exercise": "Barbell Bench Press",
             "weight": "0",
             "reps": "10",
-            "rpe": "7"
+            "rpe": "7",
+            "entry_id": "legacy-set-2"
         },
         {
             "date": "2026-11-03",
@@ -110,6 +112,65 @@
             "superset_group": "",
             "session_id": "16814b18-c67f-47dd-9fac-38597081d9ff",
             "session_name": "Workout"
+        },
+        {
+            "date": "2026-11-08",
+            "muscle": "Legs",
+            "exercise": "Hack Squat",
+            "weight": "310",
+            "reps": "1",
+            "rpe": "7",
+            "unit": "kg",
+            "notes": "",
+            "set_type": "working",
+            "distance": "",
+            "duration": "",
+            "distance_unit": "km",
+            "entry_id": "2a47662a-4702-4d51-845c-ee6be01553c6",
+            "elapsed_seconds": 50,
+            "superset_group": "",
+            "session_id": "947703c8-c3df-4d81-8ce0-7ebfb8c29f7a",
+            "session_name": "Quad focused leg day",
+            "finished": true
+        },
+        {
+            "date": "2026-11-08",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "23",
+            "reps": "23",
+            "rpe": "7",
+            "unit": "kg",
+            "notes": "",
+            "set_type": "working",
+            "distance": "",
+            "duration": "",
+            "distance_unit": "km",
+            "entry_id": "2ee96027-bdc0-4a79-a8bb-6ca639400338",
+            "elapsed_seconds": 50,
+            "superset_group": "",
+            "session_id": "947703c8-c3df-4d81-8ce0-7ebfb8c29f7a",
+            "session_name": "Quad focused leg day",
+            "finished": true
+        },
+        {
+            "date": "2026-11-08",
+            "muscle": "Chest",
+            "exercise": "Barbell Bench Press",
+            "weight": "50",
+            "reps": "10",
+            "rpe": "7",
+            "unit": "kg",
+            "notes": "",
+            "set_type": "working",
+            "distance": "",
+            "duration": "",
+            "distance_unit": "km",
+            "entry_id": "1314f5b1-bad7-4907-92c8-d0258f59e85e",
+            "elapsed_seconds": 8,
+            "superset_group": "",
+            "session_id": "2d1f6322-3b4a-480e-b4d0-03faaaab31ce",
+            "session_name": "Workout"
         }
     ],
     "exercises": {
@@ -141,7 +202,8 @@
             "Seated Calf raises",
             "Rdl",
             "Horizontal leg press",
-            "Standing calf raises"
+            "Standing calf raises",
+            "Hack Squat"
         ],
         "Shoulders": [
             "Overhead Press",

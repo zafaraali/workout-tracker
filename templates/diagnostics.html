@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IronTrack diagnostics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <main class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        <div class="flex items-center justify-between gap-3">
+            <div><p class="eyebrow">MAINTENANCE</p><h1 class="text-2xl font-bold">IronTrack diagnostics</h1></div>
+            <a href="{{ url_for('main.index') }}" class="underline">Back to app</a>
+        </div>
+        <section class="workspace-card rounded-2xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-emerald-400">Storage health</h2>
+            <dl class="grid gap-3 sm:grid-cols-2">
+                <div><dt class="text-sm text-slate-400">Database integrity</dt><dd class="font-semibold">{{ database_integrity }}</dd></div>
+                <div><dt class="text-sm text-slate-400">Database size</dt><dd class="font-semibold">{{ (database_size / 1024)|round(1) }} KB</dd></div>
+                <div><dt class="text-sm text-slate-400">Automatic backups</dt><dd class="font-semibold">{{ backup_count }}</dd></div>
+                <div><dt class="text-sm text-slate-400">Latest backup</dt><dd class="font-semibold break-all">{{ latest_backup }}</dd></div>
+            </dl>
+            <p class="text-xs text-slate-500 break-all">{{ database_path }}</p>
+        </section>
+        <section class="workspace-card rounded-2xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-emerald-400">Record counts</h2>
+            <dl class="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                <div><dt class="text-sm text-slate-400">Workout sets</dt><dd class="text-xl font-bold">{{ workout_count }}</dd></div>
+                <div><dt class="text-sm text-slate-400">Routines</dt><dd class="text-xl font-bold">{{ routine_count }}</dd></div>
+                <div><dt class="text-sm text-slate-400">Measurements</dt><dd class="text-xl font-bold">{{ measurement_count }}</dd></div>
+                <div><dt class="text-sm text-slate-400">Exercises</dt><dd class="text-xl font-bold">{{ exercise_count }}</dd></div>
+            </dl>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,0 +1,12 @@
+.git
+.env
+access.json
+node_modules
+.venv
+__pycache__
+tests
+test-results
+workout_data.json
+*.sqlite3
+*.sqlite3-*
+workout_backups

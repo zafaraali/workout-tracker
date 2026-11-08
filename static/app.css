@@ -140,8 +140,8 @@ html:not(.dark) .date-picker-button:hover {
 
 .app-nav {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.35rem;
     border-bottom: 1px solid #1e293b;
     padding-bottom: 0.5rem;
 }
@@ -373,6 +373,24 @@ html:not(.dark) .calendar-day-active.calendar-day-selected {
     font-size: 0.7rem;
 }
 
+.schedule-day-option {
+    display: inline-flex;
+    min-height: 2.25rem;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--line-subtle, #334155);
+    border-radius: 9999px;
+    padding: 0.35rem 0.65rem;
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.75rem;
+}
+
+.schedule-day-option:has(input:checked) {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
 html:not(.dark) .weekly-stat {
     background: var(--accent-soft, #ecfdf5);
 }
@@ -412,8 +430,8 @@ html:not(.dark) .weekly-stat {
         position: fixed;
         inset: auto 0 0;
         z-index: 60;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.25rem;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 0.15rem;
         padding: 0.5rem 0.625rem calc(0.5rem + env(safe-area-inset-bottom));
         border-top: 1px solid #1e293b;
         border-bottom: 0;
@@ -475,6 +493,456 @@ html:not(.dark) .weekly-stat {
 
     #section-history details form > button {
         min-height: 2.75rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Workout-flow utility: keep the plate helper compact beside the weight input. */
+.plate-calculator-control {
+    display: flex;
+    flex-direction: column;
+    justify-content: end;
+    gap: 0.35rem;
+}
+
+.secondary-action {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--line-subtle);
+    border-radius: 0.55rem;
+    background: var(--surface-inset);
+    color: var(--text-main);
+    font-size: 0.85rem;
+}
+
+.secondary-action:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-text);
+}
+
+.plate-calculator-result {
+    min-height: 1.2rem;
+    color: var(--accent-text);
+    font-size: 0.75rem;
+}
+
+.routine-progress {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.routine-progress-track {
+    height: 0.45rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface-inset);
+}
+
+.routine-progress-track span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent-color);
+    transition: width 180ms ease;
+}
+
+.csv-import-preview {
+    overflow-x: auto;
+    padding-top: 0.65rem;
+}
+
+.csv-preview-heading {
+    margin-bottom: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.csv-preview-status {
+    margin-bottom: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.csv-preview-ready {
+    color: var(--accent-color);
+}
+
+.csv-preview-warning {
+    color: var(--danger-text, #fb7185);
+}
+
+.csv-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.csv-preview-table th,
+.csv-preview-table td {
+    max-width: 13rem;
+    overflow: hidden;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--line-subtle);
+    text-overflow: ellipsis;
+}
+
+.csv-preview-table th {
+    color: var(--accent-text);
+    text-align: left;
+}
+
+.logger-validation-message {
+    min-height: 1.2rem;
+    color: var(--danger-text, #fb7185);
+    font-size: 0.8rem;
+}
+
+.chart-point:focus {
+    outline: 3px solid var(--accent-color);
+    outline-offset: 3px;
+}
+
+.bulk-history-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0.65rem 0;
+    border-top: 1px solid var(--line-subtle);
+    border-bottom: 1px solid var(--line-subtle);
+}
+
+.bulk-history-delete {
+    padding: 0.55rem 0.8rem;
+    border-radius: 0.55rem;
+    background: var(--danger-text, #be123c);
+    color: white;
+    font-size: 0.8rem;
+}
+
+.bulk-history-delete:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.history-select-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-right: 0.65rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.history-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-right: auto;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+    .app-nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        overflow-x: auto;
+        scrollbar-width: none;
+        background: color-mix(in srgb, var(--surface-page) 94%, transparent);
+        backdrop-filter: blur(10px);
+    }
+
+    .app-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab-button {
+        flex: 0 0 auto;
+        min-width: 5.5rem;
+    }
+
+    body.compact-log #section-log .compact-optional,
+    body.compact-log #section-log .quick-log-controls,
+    body.compact-log #section-log .log-entry-card .set-options {
+        display: none;
+    }
+
+    body.compact-log #section-log .log-entry-card form[action*="/log"] {
+        gap: 0.6rem;
+    }
+}
+
+.form-control:invalid:not(:placeholder-shown) {
+    border-color: color-mix(in srgb, var(--danger-text, #fb7185) 75%, transparent);
+}
+
+@media (max-width: 640px) {
+    #section-log .log-entry-card form[action*="/log"] > button[type="submit"] {
+        position: sticky;
+        bottom: 0.75rem;
+        z-index: 5;
+        min-height: 3.25rem;
+        box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
+    }
+
+    #section-log .quick-log-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    #section-log .quick-log-controls .field-label,
+    #section-log .quick-log-controls p {
+        grid-column: 1 / -1;
+    }
+
+    #section-log .quick-log-controls button {
+        width: 100%;
+        min-height: 3rem;
+    }
+}
+
+/* Roadmap: history search controls. */
+.history-search-row {
+    display: flex;
+    align-items: end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.history-filter-field {
+    min-width: 9rem;
+}
+
+.history-search-clear {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--line-subtle);
+    border-radius: 0.55rem;
+    background: var(--surface-inset);
+    color: var(--text-muted);
+}
+
+.history-search-clear:hover {
+    color: var(--text-main);
+    border-color: var(--accent-color);
+}
+
+/* Keep five library entries visible even when the panel is narrower than the
+   viewport's sm breakpoint. */
+.library-panel {
+    height: 58rem;
+    min-height: 58rem;
+}
+
+.library-exercise {
+    padding: 0.55rem !important;
+}
+
+.library-exercise > form:first-of-type {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 0.4rem !important;
+    align-items: center;
+}
+
+.library-exercise > form:first-of-type input[name="exercise_name"] {
+    min-width: 0;
+}
+
+.library-exercise .form-control {
+    min-height: 2.15rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.library-exercise > form:last-of-type button {
+    padding: 0.1rem 0;
+}
+
+@media (max-width: 640px) {
+    .library-panel {
+        height: 52rem;
+        min-height: 52rem;
+    }
+}
+
+/* Refined finish: structured surfaces without the heavy dashboard look. */
+body {
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 28rem),
+        var(--surface-page) !important;
+}
+
+main#main-content {
+    padding-top: 1rem;
+}
+
+.app-nav {
+    margin-bottom: 1rem;
+    background: color-mix(in srgb, var(--surface-page) 94%, transparent);
+}
+
+main .workspace-card,
+main .bg-slate-900.border,
+#section-history > div,
+#section-progress > div,
+#section-routines > div,
+#section-measurements > div {
+    border: 1px solid var(--line-subtle) !important;
+    border-radius: 0.9rem !important;
+    background: var(--surface-raised) !important;
+    background-image: linear-gradient(145deg, rgb(255 255 255 / 2%), transparent 45%) !important;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 13%) !important;
+}
+
+#section-log:not(.hidden) {
+    gap: 1rem;
+}
+
+#section-log > .log-main-column,
+#section-log > .log-side-column {
+    gap: 1rem;
+}
+
+#section-log .log-entry-card,
+#section-log .active-workout-card,
+#section-log .exercise-history-card,
+#section-log .rest-timer-card,
+#section-history > div,
+#section-progress > div,
+#section-routines > div,
+#section-measurements > div {
+    padding: 1.25rem !important;
+}
+
+.panel-heading {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.muscle-balance-insight {
+    min-height: 1.2rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.panel-heading h2,
+main h2 {
+    font-size: 1.1rem;
+}
+
+.active-exercise-group,
+#exercise-history-list li,
+.library-exercise,
+#section-history article,
+#section-routines article {
+    border-width: 1px !important;
+    border-radius: 0.65rem !important;
+    background: var(--surface-inset) !important;
+}
+
+.history-list,
+.routine-list {
+    gap: 0.75rem;
+}
+
+.routine-search-row {
+    display: flex;
+    align-items: end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+#measurement-search-status {
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+}
+
+form[aria-busy="true"] {
+    cursor: progress;
+}
+
+.history-list > article,
+.routine-list > article {
+    padding: 0.9rem !important;
+}
+
+#section-log .log-entry-card form[action*="/log"] > button[type="submit"] {
+    box-shadow: 0 5px 14px color-mix(in srgb, var(--accent-color) 22%, transparent);
+}
+
+@media (max-width: 860px) {
+    main .workspace-card,
+    main .bg-slate-900.border,
+    #section-history > div,
+    #section-progress > div,
+    #section-routines > div,
+    #section-measurements > div {
+        border-radius: 0.75rem !important;
+    }
+}
+
+@media (max-width: 640px) {
+    main#main-content {
+        padding-top: 0.7rem;
+    }
+
+    #section-log .log-entry-card,
+    #section-log .active-workout-card,
+    #section-log .exercise-history-card,
+    #section-log .rest-timer-card,
+    #section-history > div,
+    #section-progress > div,
+    #section-routines > div,
+    #section-measurements > div {
+        padding: 1rem !important;
+    }
+}
+
+/* Compact library editors: five entries fit without an internal scrollbar. */
+.library-panel {
+    height: 58rem !important;
+    min-height: 58rem !important;
+}
+
+.library-exercise {
+    padding: 0.55rem !important;
+}
+
+.library-exercise > form:first-of-type {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 0.4rem !important;
+    align-items: center;
+}
+
+.library-exercise .form-control {
+    min-height: 2.15rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.library-exercise > form:last-of-type button {
+    padding: 0.1rem 0;
+}
+
+@media (max-width: 640px) {
+    .library-panel {
+        height: 52rem !important;
+        min-height: 52rem !important;
     }
 }
 
@@ -900,35 +1368,59 @@ html:not(.dark) main .bg-slate-950 {
 #section-log:not(.hidden) {
     display: grid;
     grid-template-columns: minmax(0, 1.18fr) minmax(19rem, 0.82fr);
-    grid-template-areas:
-        "entry history"
-        "active timer";
     align-items: start;
     gap: 1rem;
 }
 
-#section-log > * {
+#section-log > .log-main-column,
+#section-log > .log-side-column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1rem;
     margin: 0 !important;
 }
 
-#section-log > .log-entry-card {
-    grid-area: entry;
+#section-log .log-entry-card {
     padding: 1.35rem;
 }
 
-#section-log > .active-workout-card {
-    grid-area: active;
+#section-log .active-workout-card {
     padding: 1.25rem;
 }
 
-#section-log > .exercise-history-card {
-    grid-area: history;
+#section-log .exercise-history-card {
     padding: 1.25rem;
 }
 
-#section-log > .rest-timer-card {
-    grid-area: timer;
+#section-log .rest-timer-card {
     padding: 1.25rem;
+}
+
+/* Keep repeated cards packed to their content instead of stretching into empty rows. */
+.history-list,
+.routine-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+    align-items: start;
+    gap: 1rem;
+}
+
+.history-list > article,
+.routine-list > article {
+    min-width: 0;
+}
+
+#section-progress:not(.hidden) {
+    display: grid;
+    grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.8fr);
+    align-items: start;
+    gap: 1rem;
+}
+
+#section-progress:not(.hidden) > * {
+    min-width: 0;
+    margin: 0 !important;
 }
 
 .panel-heading {
@@ -1024,6 +1516,43 @@ textarea.form-control {
     background: var(--surface-inset);
     padding: 0.3rem 0.65rem;
     font-variant-numeric: tabular-nums;
+}
+
+.session-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    border-top: 1px solid var(--line-subtle);
+    border-bottom: 1px solid var(--line-subtle);
+    padding: 0.75rem 0;
+}
+
+.session-summary div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.session-summary strong {
+    color: var(--text-main);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.session-summary span {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+    .session-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 0.75rem;
+    }
 }
 
 #exercise-history-list li {
@@ -1146,11 +1675,15 @@ input[type="radio"] {
 @media (max-width: 860px) {
     #section-log:not(.hidden) {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            "entry"
-            "active"
-            "timer"
-            "history";
+    }
+
+    #section-log > .log-main-column,
+    #section-log > .log-side-column {
+        display: contents;
+    }
+
+    #section-progress:not(.hidden) {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .app-nav {
@@ -1192,7 +1725,7 @@ input[type="radio"] {
         inset: auto 0 0;
         z-index: 60;
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 0.15rem;
         margin: 0;
         border-top: 1px solid var(--line-subtle);
@@ -1231,10 +1764,10 @@ input[type="radio"] {
         gap: 0.75rem;
     }
 
-    #section-log > .log-entry-card,
-    #section-log > .active-workout-card,
-    #section-log > .exercise-history-card,
-    #section-log > .rest-timer-card {
+    #section-log .log-entry-card,
+    #section-log .active-workout-card,
+    #section-log .exercise-history-card,
+    #section-log .rest-timer-card {
         padding: 1rem;
     }
 
@@ -1433,25 +1966,21 @@ input[type="radio"] {
 
     @media (max-width: 640px) {
         #section-log:not(.hidden) {
-            grid-template-areas:
-                "entry"
-                "active"
-                "timer"
-                "history";
+            grid-template-columns: minmax(0, 1fr);
         }
 
-        #section-log > .log-entry-card,
-        #section-log > .active-workout-card,
-        #section-log > .exercise-history-card,
-        #section-log > .rest-timer-card {
+        #section-log .log-entry-card,
+        #section-log .active-workout-card,
+        #section-log .exercise-history-card,
+        #section-log .rest-timer-card {
             padding: 0.85rem;
         }
 
-        #section-log > .log-entry-card form[action*="/log"] {
+        #section-log .log-entry-card form[action*="/log"] {
             gap: 0.7rem;
         }
 
-        #section-log > .active-workout-card {
+        #section-log .active-workout-card {
             scroll-margin-top: 5rem;
         }
 
@@ -1538,5 +2067,644 @@ input[type="radio"] {
 @media (prefers-reduced-motion: reduce) {
     .tab-panel:not(.hidden) {
         animation: none;
+    }
+}
+
+/* Keep the logger and current workout prominent during training. */
+body.workout-focus #section-log > .log-side-column { display: none; }
+body.workout-focus .app-header .accent-picker,
+body.workout-focus #reset-accent { display: none; }
+body.workout-focus #section-log:not(.hidden) { grid-template-columns: minmax(0, 1fr); }
+
+.quick-log-controls button, .swipe-actions button { min-height: 44px; padding: .6rem .8rem; margin: .2rem; border: 1px solid var(--border-color, #334155); border-radius: .6rem; }
+.quick-log-controls { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
+.quick-log-controls select { width: 6rem; }
+.swipe-actions { border: 1px solid #10b981; border-radius: .75rem; padding: .5rem; margin-top: .5rem; }
+[data-swipe-set] { touch-action: pan-y; }
+progress { accent-color: var(--accent-color, #10b981); }
+
+/* Final UI polish: consistent rhythm, clearer hierarchy, and touch-friendly controls. */
+body {
+    line-height: 1.45;
+    text-rendering: optimizeLegibility;
+}
+
+::selection {
+    background: var(--accent-soft, #064e3b);
+    color: var(--text-main, #f8fafc);
+}
+
+main .workspace-card,
+main .bg-slate-900.border {
+    background-image: linear-gradient(145deg, rgb(255 255 255 / 2%), transparent 42%);
+}
+
+main h2 {
+    letter-spacing: -0.015em;
+}
+
+button,
+a,
+summary,
+select,
+input[type="submit"] {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+a,
+summary {
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
+button:not(:disabled):active,
+input[type="submit"]:active {
+    transform: translateY(1px);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+.form-control:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+details.set-options,
+#routine-substitution {
+    overflow: hidden;
+}
+
+details.set-options > summary,
+#routine-substitution > summary {
+    cursor: pointer;
+    padding: 0.15rem 0;
+    color: var(--text-main);
+    font-weight: 650;
+}
+
+details.set-options > summary::marker,
+#routine-substitution > summary::marker {
+    color: var(--accent-color);
+}
+
+details[open].set-options > summary,
+#routine-substitution[open] > summary {
+    margin-bottom: 0.75rem;
+}
+
+@media (max-width: 640px) {
+    #section-log .panel-heading h2 {
+        font-size: 1.05rem;
+    }
+
+    #section-log form[action*="/log"] > button[type="submit"] {
+        min-height: 3.25rem;
+    }
+}
+
+.toast-container {
+    position: fixed;
+    top: 5.5rem;
+    right: 1rem;
+    z-index: 100;
+    display: flex;
+    width: min(24rem, calc(100vw - 2rem));
+    flex-direction: column;
+    gap: 0.65rem;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid;
+    border-radius: 0.8rem;
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.25);
+    opacity: 0;
+    transform: translateX(1.5rem);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: auto;
+    font-size: 0.9rem;
+}
+
+.toast-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-success {
+    background: #064e3b;
+    border-color: #047857;
+    color: #d1fae5;
+}
+
+.toast-error {
+    background: #4c0519;
+    border-color: #be123c;
+    color: #ffe4e6;
+}
+
+.toast-dismiss {
+    flex: 0 0 auto;
+    margin: -0.25rem -0.35rem 0 0;
+    padding: 0.15rem 0.35rem;
+    color: currentColor;
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: 0.8;
+}
+
+.toast-dismiss:hover,
+.toast-dismiss:focus-visible {
+    opacity: 1;
+}
+
+html:not(.dark) .toast-success {
+    background: #d1fae5;
+    border-color: #34d399;
+    color: #065f46;
+}
+
+html:not(.dark) .toast-error {
+    background: #ffe4e6;
+    border-color: #fb7185;
+    color: #9f1239;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast { transition: none; }
+}
+
+/* IronTrack utility mode --------------------------------------------------
+   A dense, workout-first visual system inspired by practical gym loggers. */
+:root {
+    --surface-page: #0b0e0f;
+    --surface-raised: #101516;
+    --surface-inset: #151c1c;
+    --line-subtle: #293533;
+    --text-main: #eef4f0;
+    --text-muted: #8fa09a;
+    --accent-color: #7ee2a4;
+    --accent-text: #9af0ba;
+    --accent-soft: #173b2b;
+}
+
+html:not(.dark) {
+    --surface-page: #f5f7f5;
+    --surface-raised: #ffffff;
+    --surface-inset: #edf2ef;
+    --line-subtle: #d4dfd9;
+    --text-main: #17211c;
+    --text-muted: #617069;
+    --accent-color: #18864f;
+    --accent-text: #126d40;
+    --accent-soft: #d9f5e3;
+}
+
+body {
+    background: var(--surface-page) !important;
+    font-size: 0.9rem;
+}
+
+.app-header {
+    min-height: 4rem;
+    border-bottom: 1px solid var(--line-subtle);
+    background: var(--surface-page);
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.app-header-inner {
+    min-height: 4rem;
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+}
+
+.brand-lockup img {
+    width: 30px;
+    height: 30px;
+    border-radius: 0.45rem;
+}
+
+.brand-lockup h1 {
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+}
+
+main#main-content {
+    width: min(100%, 1240px);
+    padding-top: 0;
+}
+
+.app-nav {
+    top: 4rem;
+    margin: 0 0 0.5rem;
+    border-bottom: 1px solid var(--line-subtle);
+    padding: 0;
+    background: var(--surface-page);
+}
+
+.app-nav .tab-button {
+    min-height: 2.55rem;
+    border-radius: 0;
+    padding: 0.55rem 0.9rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.app-nav .tab-button.bg-emerald-600 {
+    border-bottom: 3px solid var(--accent-color);
+    color: var(--accent-text) !important;
+}
+
+.app-nav .tab-button:hover:not(.bg-emerald-600) {
+    background: transparent;
+    color: var(--text-main);
+}
+
+/* Remove the floating-card treatment from every main screen. */
+main .workspace-card,
+main .bg-slate-900.border,
+#section-history > div,
+#section-progress > div,
+#section-routines > div,
+#section-measurements > div {
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+#section-library,
+#section-history,
+#section-progress,
+#section-routines,
+#section-measurements {
+    gap: 0;
+}
+
+#section-log:not(.hidden) {
+    gap: 0;
+}
+
+#section-log > .log-main-column,
+#section-log > .log-side-column {
+    gap: 0;
+}
+
+#section-log .log-entry-card,
+#section-log .active-workout-card,
+#section-log .exercise-history-card,
+#section-log .rest-timer-card {
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--line-subtle) !important;
+}
+
+.panel-heading {
+    align-items: baseline;
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--line-subtle);
+}
+
+.panel-heading h2,
+main h2 {
+    color: var(--text-main) !important;
+    font-size: 1.05rem;
+    font-weight: 750;
+}
+
+.eyebrow {
+    color: var(--accent-text);
+}
+
+.entry-hint {
+    max-width: none;
+    text-align: right;
+}
+
+.field-label,
+html:not(.dark) .field-label {
+    color: var(--text-muted);
+    font-size: 0.64rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+}
+
+.form-control,
+html:not(.dark) .form-control {
+    min-height: 2.45rem;
+    border: 1px solid var(--line-subtle);
+    border-radius: 0.35rem;
+    background: var(--surface-inset);
+    color: var(--text-main);
+    padding: 0.48rem 0.65rem;
+    font-size: 0.88rem;
+}
+
+.form-control:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color) 20%, transparent);
+}
+
+button,
+a,
+summary {
+    border-radius: 0.35rem;
+}
+
+button.bg-emerald-600,
+button.bg-emerald-700,
+button.bg-emerald-800,
+input[type="submit"].bg-emerald-600 {
+    background: var(--accent-color) !important;
+    color: #07110b !important;
+}
+
+button.bg-emerald-600:hover,
+button.bg-emerald-700:hover,
+button.bg-emerald-800:hover,
+input[type="submit"].bg-emerald-600:hover {
+    filter: brightness(1.08);
+}
+
+#section-log form[action*="/log"] > button[type="submit"] {
+    min-height: 3.25rem;
+    border-radius: 0.35rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+#section-log #set-weight,
+#section-log #set-reps {
+    min-height: 3rem;
+    border-color: color-mix(in srgb, var(--accent-color) 45%, var(--line-subtle));
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.quick-exercise-chip,
+.active-exercise-group,
+#exercise-history-list li,
+#progression-suggestion,
+main .bg-slate-950 {
+    border-radius: 0.35rem !important;
+    background: var(--surface-inset) !important;
+}
+
+.active-exercise-group,
+#exercise-history-list li,
+.library-exercise,
+#section-history article,
+#section-routines article {
+    border-width: 0 0 1px !important;
+    border-style: solid;
+    border-color: var(--line-subtle) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.active-exercise-group:hover,
+.library-exercise:hover,
+#section-history article:hover,
+#section-routines article:hover {
+    background: var(--surface-inset) !important;
+    box-shadow: none !important;
+}
+
+#section-history > div,
+#section-routines > div,
+#section-measurements > div,
+#section-progress > div {
+    padding: 1.25rem 0 !important;
+}
+
+.history-list,
+.routine-list {
+    gap: 0;
+}
+
+.history-list > article,
+.routine-list > article {
+    padding: 1rem 0 !important;
+}
+
+.chart-container,
+.progress-details,
+.history-disclosure,
+.routine-editor,
+.library-exercise {
+    border-radius: 0.35rem !important;
+}
+
+.toast {
+    border-radius: 0.35rem;
+}
+
+.library-panel {
+    display: flex;
+    height: min(92vh, 70rem);
+    min-height: 46rem;
+    flex-direction: column;
+}
+
+.library-results {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    padding-right: 0.35rem;
+}
+
+.library-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-top: 1px solid var(--line-subtle);
+    padding-top: 0.75rem;
+}
+
+.library-pagination button:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+@media (max-width: 640px) {
+    .app-header-inner {
+        min-height: 3.6rem;
+    }
+
+    .app-nav {
+        top: auto;
+    }
+
+    .app-nav .tab-button {
+        min-height: 3rem;
+        border-radius: 0;
+        font-size: 0.56rem;
+    }
+
+    #section-log .log-entry-card,
+    #section-log .active-workout-card,
+    #section-log .exercise-history-card,
+    #section-log .rest-timer-card {
+        padding: 1rem 0;
+    }
+
+    .library-panel {
+        height: 88vh;
+        min-height: 36rem;
+    }
+}
+
+/* Final visual balance overrides. */
+
+/* Compact library editors: five entries fit without an internal scrollbar. */
+.library-panel {
+    height: 58rem !important;
+    min-height: 58rem !important;
+}
+
+.library-exercise {
+    padding: 0.55rem !important;
+}
+
+.library-exercise > form:first-of-type {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 0.4rem !important;
+    align-items: center;
+}
+
+.library-exercise .form-control {
+    min-height: 2.15rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.library-exercise > form:last-of-type button {
+    padding: 0.1rem 0;
+}
+
+@media (max-width: 640px) {
+    .library-panel {
+        height: 52rem !important;
+        min-height: 52rem !important;
+    }
+}
+body {
+    background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 28rem),
+        var(--surface-page) !important;
+}
+
+main#main-content {
+    padding-top: 1rem;
+}
+
+.app-nav {
+    margin-bottom: 1rem;
+    background: color-mix(in srgb, var(--surface-page) 94%, transparent);
+}
+
+main .workspace-card,
+main .bg-slate-900.border,
+#section-history > div,
+#section-progress > div,
+#section-routines > div,
+#section-measurements > div {
+    border: 1px solid var(--line-subtle) !important;
+    border-radius: 0.9rem !important;
+    background: var(--surface-raised) !important;
+    background-image: linear-gradient(145deg, rgb(255 255 255 / 2%), transparent 45%) !important;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 13%) !important;
+}
+
+#section-log:not(.hidden),
+#section-log > .log-main-column,
+#section-log > .log-side-column {
+    gap: 1rem;
+}
+
+#section-log .log-entry-card,
+#section-log .active-workout-card,
+#section-log .exercise-history-card,
+#section-log .rest-timer-card,
+#section-history > div,
+#section-progress > div,
+#section-routines > div,
+#section-measurements > div {
+    padding: 1.25rem !important;
+}
+
+.panel-heading {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.panel-heading h2,
+main h2 {
+    font-size: 1.1rem;
+}
+
+.active-exercise-group,
+#exercise-history-list li,
+.library-exercise,
+#section-history article,
+#section-routines article {
+    border-width: 1px !important;
+    border-radius: 0.65rem !important;
+    background: var(--surface-inset) !important;
+}
+
+.history-list,
+.routine-list {
+    gap: 0.75rem;
+}
+
+.history-list > article,
+.routine-list > article {
+    padding: 0.9rem !important;
+}
+
+#section-log .log-entry-card form[action*="/log"] > button[type="submit"] {
+    box-shadow: 0 5px 14px color-mix(in srgb, var(--accent-color) 22%, transparent);
+}
+
+@media (max-width: 860px) {
+    main .workspace-card,
+    main .bg-slate-900.border,
+    #section-history > div,
+    #section-progress > div,
+    #section-routines > div,
+    #section-measurements > div {
+        border-radius: 0.75rem !important;
+    }
+}
+
+@media (max-width: 640px) {
+    main#main-content {
+        padding-top: 0.7rem;
+    }
+
+    #section-log .log-entry-card,
+    #section-log .active-workout-card,
+    #section-log .exercise-history-card,
+    #section-log .rest-timer-card,
+    #section-history > div,
+    #section-progress > div,
+    #section-routines > div,
+    #section-measurements > div {
+        padding: 1rem !important;
     }
 }

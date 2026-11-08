@@ -1,6 +1,7 @@
 import json
 import io
 import datetime
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,6 +53,70 @@ class WorkoutFeatureTests(unittest.TestCase):
         history = self.client.get("/?tab=history")
         self.assertIn(b"Upper body", history.data)
         self.assertIn(b"Controlled tempo", history.data)
+
+    def test_heavier_set_reports_a_personal_record(self):
+        self.log_set(weight="60")
+        response = self.client.post(
+            "/log",
+            data={
+                "date": "2026-10-13", "muscle": "Chest",
+                "exercise": "Barbell Bench Press", "weight": "65",
+                "unit": "kg", "reps": "8", "rpe": "7",
+                "session_id": "session-2", "session_name": "Upper body",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        page = self.client.get(response.headers["Location"])
+        self.assertIn(b"New personal record", page.data)
+
+    def test_common_workout_csv_import_keeps_existing_data_and_adds_exercises(self):
+        self.log_set()
+        csv_data = (
+            "Date,Workout Name,Exercise Name,Category,Weight,Weight Unit,Reps,RPE,Notes\n"
+            "10/14/2026,Push Day,Cable Fly,Chest,25,kg,12,8,Slow eccentric\n"
+            "2026-10-15,Pull Day,Lat Pulldown,Back,100,lb,10,7,\n"
+            "2026-10-16,Push Day,BB Bench Press,Chest,30,kg,10,8,\n"
+        )
+        response = self.client.post(
+            "/import/workouts.csv",
+            data={"workouts_file": (io.BytesIO(csv_data.encode()), "hevy-export.csv")},
+        )
+        self.assertEqual(response.status_code, 302)
+        imported = storage.load_data()
+        self.assertEqual(len(imported["workouts"]), 4)
+        self.assertIn("Cable Fly", imported["exercises"]["Chest"])
+        self.assertIn("Lat Pulldown", imported["exercises"]["Back"])
+        self.assertEqual(imported["workouts"][3]["exercise"], "Barbell Bench Press")
+        self.assertEqual(imported["workouts"][1]["session_name"], "Push Day")
+        self.assertEqual(imported["workouts"][2]["unit"], "lb")
+
+    def test_csv_import_normalizes_cardio_duration_units(self):
+        csv_data = (
+            "Date,Workout Name,Exercise Name,Category,Set Type,Distance,Distance Unit,Duration (seconds)\n"
+            "2026-10-17,Conditioning,Treadmill,Cardio,cardio,5,km,90\n"
+        )
+        response = self.client.post(
+            "/import/workouts.csv",
+            data={"workouts_file": (io.BytesIO(csv_data.encode()), "cardio.csv")},
+        )
+        self.assertEqual(response.status_code, 302)
+        imported = storage.load_data()["workouts"]
+        self.assertEqual(imported[0]["set_type"], "cardio")
+        self.assertEqual(imported[0]["duration"], "2")
+
+    def test_csv_import_accepts_utf16_semicolon_exports(self):
+        csv_data = (
+            "Date;Exercise;Muscle Group;Weight;Reps\n"
+            "2026-10-18;Barbell Row;Back;55;8\n"
+        )
+        response = self.client.post(
+            "/import/workouts.csv",
+            data={"workouts_file": (io.BytesIO(csv_data.encode("utf-16")), "strong-export.csv")},
+        )
+        self.assertEqual(response.status_code, 302)
+        imported = storage.load_data()["workouts"]
+        self.assertEqual(imported[0]["exercise"], "Barbell Row")
+        self.assertEqual(imported[0]["muscle"], "Back")
 
     def test_backup_preview_is_non_mutating_and_supports_merge_or_replace(self):
         current = storage.load_data()
@@ -162,7 +227,7 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertEqual(storage.load_data()["workouts"][0]["routine_id"], routine_id)
 
         self.client.post(
-            "/edit_workout/0",
+            f"/sets/{storage.load_data()['workouts'][0]['entry_id']}/edit",
             data={
                 "date": "2026-10-12",
                 "session_name": "Upper body",
@@ -183,7 +248,7 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.log_set()
         self.log_set(exercise="Incline Dumbbell Press")
         edited = self.client.post(
-            "/edit_workout/0",
+            f"/sets/{storage.load_data()['workouts'][0]['entry_id']}/edit",
             data={
                 "date": "2026-10-13",
                 "session_name": "Strength day",
@@ -207,7 +272,7 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertEqual(second_workout["date"], "2026-10-13")
         self.assertEqual(second_workout["session_name"], "Strength day")
 
-        deleted = self.client.post("/delete_workout/0")
+        deleted = self.client.post(f"/sets/{storage.load_data()['workouts'][0]['entry_id']}/delete")
         self.assertEqual(deleted.status_code, 302)
         self.assertEqual(len(storage.load_data()["workouts"]), 1)
 
@@ -254,6 +319,19 @@ class WorkoutFeatureTests(unittest.TestCase):
         remaining = storage.load_data()["workouts"]
         self.assertEqual(len(remaining), 1)
         self.assertEqual(remaining[0]["session_id"], "session-2")
+
+    def test_delete_session_can_be_undone_with_original_order(self):
+        self.log_set()
+        self.log_set(exercise="Incline Dumbbell Press")
+        self.client.post(
+            "/delete_session",
+            data={"session_id": "session-1", "date": "2026-10-12"},
+        )
+        self.assertEqual(storage.load_data()["workouts"], [])
+        response = self.client.post("/undo_delete_set")
+        self.assertEqual(response.status_code, 302)
+        restored = storage.load_data()["workouts"]
+        self.assertEqual([item["exercise"] for item in restored], ["Barbell Bench Press", "Incline Dumbbell Press"])
 
     def test_delete_legacy_session_removes_only_legacy_sets_for_its_date(self):
         data = storage.load_data()
@@ -427,7 +505,7 @@ class WorkoutFeatureTests(unittest.TestCase):
 
         storage.DATA_FILE.write_text("{damaged", encoding="utf-8")
         recovered = storage.load_data()
-        self.assertEqual(len(recovered["workouts"]), 1)
+        self.assertEqual(len(recovered["workouts"]), 2)
         self.assertEqual(recovered["workouts"][0]["date"], "2026-10-12")
 
     def test_log_request_with_same_entry_id_is_idempotent(self):
@@ -477,6 +555,7 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertTrue(all(item["finished"] for item in workouts))
         history = self.client.get("/?tab=history")
         self.assertIn(b"03:00", history.data)
+        self.assertIn(b"Workout complete", history.data)
 
     def test_csv_exports_include_rows_and_protect_formula_values(self):
         data = storage.load_data()
@@ -587,14 +666,14 @@ class WorkoutFeatureTests(unittest.TestCase):
     def test_duplicate_single_set_and_reject_invalid_target_date(self):
         self.log_set()
         invalid = self.client.post(
-            "/duplicate_workout/0",
+            f"/sets/{storage.load_data()['workouts'][0]['entry_id']}/duplicate",
             data={"date": "not-a-date"},
         )
         self.assertEqual(invalid.status_code, 302)
         self.assertEqual(len(storage.load_data()["workouts"]), 1)
 
         response = self.client.post(
-            "/duplicate_workout/0",
+            f"/sets/{storage.load_data()['workouts'][0]['entry_id']}/duplicate",
             data={"date": "2026-10-20"},
         )
         workouts = storage.load_data()["workouts"]
@@ -691,6 +770,8 @@ class WorkoutFeatureTests(unittest.TestCase):
             b'id="timer-sound-enabled"',
             b'id="timer-vibration-enabled"',
             b'id="weekly-dashboard"',
+            b'name="csrf-token"',
+            b"initializeCsrfForms",
             b'id="set-type-rest-preset"',
             b'id="personal-record-history"',
             b"Repeat workout",
@@ -875,6 +956,74 @@ class WorkoutFeatureTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"45 kg", page.data)
         self.assertIn(b"Workout", page.data)
+
+    def test_sqlite_backup_download_and_security_headers(self):
+        self.log_set()
+        response = self.client.get("/export/irontrack.sqlite3")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"SQLite format 3", response.data[:32])
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
+        connection = sqlite3.connect(storage.database_path())
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        connection.close()
+        self.assertTrue({"workouts", "routines", "measurements", "goals", "exercises"}.issubset(tables))
+        response.close()
+
+    def test_legacy_sqlite_state_migrates_to_relational_tables(self):
+        legacy = {
+            "workouts": [{"date": "2026-10-12", "muscle": "Chest", "exercise": "Barbell Bench Press", "weight": "60", "reps": "8"}],
+            "exercises": DEFAULT_EXERCISES,
+            "routines": [],
+            "measurements": [],
+            "goals": [],
+        }
+        connection = sqlite3.connect(storage.database_path())
+        connection.execute("CREATE TABLE app_state (id INTEGER PRIMARY KEY, data_json TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        connection.execute("INSERT INTO app_state VALUES (1, ?, 'now')", (json.dumps(legacy),))
+        connection.commit()
+        connection.close()
+        loaded = storage.load_data()
+        self.assertEqual(len(loaded["workouts"]), 1)
+        connection = sqlite3.connect(storage.database_path())
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        connection.close()
+        self.assertIn("workouts", tables)
+        self.assertNotIn("app_state", tables)
+
+    def test_routine_schedule_is_saved_and_rendered(self):
+        response = self.client.post(
+            "/save_routine",
+            data={
+                "mode": "builder",
+                "name": "Friday Strength",
+                "schedule_days": ["4", "6"],
+                "exercises_json": json.dumps([{
+                    "muscle": "Chest",
+                    "exercise": "Barbell Bench Press",
+                    "target_sets": "3",
+                    "target_reps": "8",
+                }]),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        routine = storage.load_data()["routines"][0]
+        self.assertEqual(routine["schedule_days"], ["4", "6"])
+        page = self.client.get("/?tab=routines")
+        self.assertIn(b"Scheduled", page.data)
+
+    def test_state_changing_requests_require_csrf_token_outside_testing(self):
+        self.client.application.config["TESTING"] = False
+        self.client.get("/")
+        with self.client.session_transaction() as browser_session:
+            token = browser_session["csrf_token"]
+        rejected = self.client.post("/log", data={"date": "2026-10-12"})
+        self.assertEqual(rejected.status_code, 400)
+        accepted = self.log_set(csrf_token=token)
+        self.assertEqual(accepted.status_code, 302)
 
 
 if __name__ == "__main__":

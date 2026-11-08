@@ -1,0 +1,104 @@
+        <section id="section-routines" role="tabpanel" aria-labelledby="tab-routines" tabindex="0" class="tab-panel space-y-6 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                <div>
+                    <h2 class="text-lg font-semibold text-emerald-500">Workout Routines</h2>
+                    <p class="mt-1 text-sm text-slate-400">Build editable routines with exercise order, target sets, reps, weight, and rest time.</p>
+                </div>
+                <form action="{{ url_for('main.save_routine') }}" method="POST" class="routine-editor space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4" data-initial="[]">
+                    <input type="hidden" name="mode" value="builder"><input type="hidden" name="profile_id" value="{{ active_profile_id }}">
+                    <input type="hidden" name="exercises_json">
+                    <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control"></label>
+                    <fieldset class="routine-schedule-field border-t border-slate-800 pt-3">
+                        <legend class="field-label">Schedule (optional)</legend>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            {% for day, label in [('0', 'Mon'), ('1', 'Tue'), ('2', 'Wed'), ('3', 'Thu'), ('4', 'Fri'), ('5', 'Sat'), ('6', 'Sun')] %}
+                            <label class="schedule-day-option"><input type="checkbox" name="schedule_days" value="{{ day }}"> {{ label }}</label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+                    <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Create routine</button>
+                    </div>
+                </form>
+                <form action="{{ url_for('main.save_routine') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                    <input type="hidden" name="session_id" id="routine-session-id" value="{{ active_session_id }}">
+                    <input type="hidden" name="session_name" id="routine-session-name">
+                    <label class="field-label">Save current session as
+                        <input type="text" name="name" maxlength="100" required placeholder="e.g. Upper body A" class="form-control">
+                    </label>
+                    <p class="text-sm text-slate-400">Log at least one set in the active session first.</p>
+                    <button type="submit" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Save routine</button>
+                </form>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4">
+                    <a href="{{ url_for('main.export_routines') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-center text-sm hover:bg-slate-700">Export routines JSON</a>
+                    <form action="{{ url_for('main.import_routines') }}" method="POST" enctype="multipart/form-data" class="flex flex-wrap items-center gap-2" onsubmit="return confirm('Importing routines replaces your current routine list. Continue?')">
+                        <input type="file" name="routines_file" accept=".json,application/json" required class="min-w-0 flex-1 text-xs text-slate-400">
+                        <button type="submit" class="rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Import routines</button>
+                    </form>
+                </div>
+                <div class="routine-search-row">
+                    <label class="field-label flex-1" for="routine-search">Find a routine
+                        <input type="search" id="routine-search" class="form-control" placeholder="Search routine name, exercise, or schedule..." autocomplete="off">
+                    </label>
+                    <span id="routine-search-status" class="text-sm text-slate-400" aria-live="polite"></span>
+                </div>
+                <div class="routine-list">
+                    {% for routine in routines %}
+                    <article class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3 routine-card">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="font-medium text-emerald-400">{{ routine.name }}</h3>
+                            <button type="button" class="routine-comparison-toggle rounded-lg border border-slate-700 px-3 py-1.5 text-sm" data-routine-id="{{ routine.id }}">Compare sessions</button>
+                        </div>
+                        <p class="text-xs text-slate-400">
+                            {% if routine.schedule_days %}
+                                Scheduled: {{ routine.schedule_days|map('replace', '0', 'Mon')|map('replace', '1', 'Tue')|map('replace', '2', 'Wed')|map('replace', '3', 'Thu')|map('replace', '4', 'Fri')|map('replace', '5', 'Sat')|map('replace', '6', 'Sun')|join(', ') }}
+                                {% if today_weekday in routine.schedule_days %}<span class="ml-1 font-semibold text-emerald-400">· Planned today</span>{% endif %}
+                            {% else %}No weekly schedule assigned{% endif %}
+                        </p>
+                        {% set progress = routine_progress.get(routine.id, {}) %}
+                        {% if progress.get('planned') %}
+                        <div class="routine-progress" aria-label="Latest routine completion">
+                            <div class="flex justify-between gap-3 text-xs text-slate-400">
+                                <span>Latest completion{% if progress.get('date') %} · {{ progress.date }}{% endif %}</span>
+                                <strong class="text-emerald-400">{{ progress.completed }}/{{ progress.planned }} sets</strong>
+                            </div>
+                            <div class="routine-progress-track"><span style="width: {{ progress.percent }}%"></span></div>
+                        </div>
+                        {% endif %}
+                        <div class="routine-comparison hidden rounded-lg border border-slate-800 p-3 text-sm text-slate-300" data-routine-id="{{ routine.id }}" aria-live="polite"></div>
+                        <form action="{{ url_for('main.update_routine', routine_id=routine.id) }}" method="POST" class="routine-editor space-y-3" data-initial="{{ routine.exercises|tojson|forceescape }}">
+                            <input type="hidden" name="exercises_json">
+                            <label class="field-label">Routine name<input type="text" name="name" maxlength="100" required value="{{ routine.name }}" class="form-control"></label>
+                            <fieldset class="routine-schedule-field border-t border-slate-800 pt-3">
+                                <legend class="field-label">Schedule (optional)</legend>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    {% for day, label in [('0', 'Mon'), ('1', 'Tue'), ('2', 'Wed'), ('3', 'Thu'), ('4', 'Fri'), ('5', 'Sat'), ('6', 'Sun')] %}
+                                    <label class="schedule-day-option"><input type="checkbox" name="schedule_days" value="{{ day }}" {% if day in routine.schedule_days|default([]) %}checked{% endif %}> {{ label }}</label>
+                                    {% endfor %}
+                                </div>
+                            </fieldset>
+                            <div class="routine-exercise-rows space-y-3" aria-label="Routine exercise targets"></div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="addRoutineExercise(this.form)" class="px-3 py-2 bg-slate-800 rounded-lg">Add exercise</button>
+                                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg">Save routine</button>
+                                <button type="button" data-start-routine="{{ routine.id }}" class="start-routine-button px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg">Start routine now</button>
+                            </div>
+                        </form>
+                        <form action="{{ url_for('main.delete_routine', routine_id=routine.id) }}" method="POST" onsubmit="return confirm('Delete this routine?')">
+                            <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete routine</button>
+                        </form>
+                    </article>
+                    {% else %}
+                    <p class="text-sm text-slate-400">No saved routines yet. Create one above or save an active workout session.</p>
+                    {% endfor %}
+                </div>
+                <div id="routine-search-empty" class="empty-state hidden" role="status">
+                    <span class="empty-state-icon" aria-hidden="true">⌕</span>
+                    <h3>No matching routines</h3>
+                    <p>Try a different routine name, exercise, or schedule.</p>
+                </div>
+            </div>
+        </section>
+

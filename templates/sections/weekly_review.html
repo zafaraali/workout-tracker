@@ -1,0 +1,15 @@
+<section id="weekly-review" class="rounded-xl border border-slate-700 bg-slate-900 p-4 space-y-3" aria-labelledby="weekly-review-title">
+    <div><h3 id="weekly-review-title" class="font-semibold text-emerald-400">Your weekly review</h3>
+        <p class="text-sm text-slate-400">{{ weekly_review.start }} through {{ weekly_review.end }} · Monday start</p></div>
+    <div class="grid grid-cols-2 gap-3 text-sm">
+        <p><strong>{{ weekly_review.completed }}</strong> completed sessions<br><span class="text-slate-400">{{ weekly_review.in_progress }} unfinished</span></p>
+        <p><strong>{{ weekly_review.volume }}</strong> kg × reps<br><span class="text-slate-400">Working, drop, and failure sets</span></p>
+    </div>
+    <p class="text-sm">{% if weekly_review.volume_change is not none %}{{ '%+.1f'|format(weekly_review.volume_change) }}% volume{% else %}No prior-week volume to compare{% endif %} · previous full week: {{ weekly_review.previous_start }}–{{ weekly_review.previous_end }} ({{ weekly_review.previous_volume }} kg × reps).</p>
+    <p class="text-sm">Routine adherence: {% if weekly_review.due %}{{ weekly_review.matched }} of {{ weekly_review.due }} scheduled workouts due so far completed.{% else %}No scheduled workouts due so far.{% endif %}</p>
+    {% for item in weekly_review.adherence %}<p class="text-xs text-slate-400">{{ item.name }}: {{ item.done }}/{{ item.due }}</p>{% endfor %}
+    <details><summary class="text-sm">Weight personal records · {{ weekly_review.records|length }}</summary>
+        <p class="text-xs text-slate-400">Higher loads than previously logged, normalized to kg. First-ever sets establish a baseline.</p>
+        <ul class="space-y-1 text-sm">{% for record in weekly_review.records %}<li>{{ record.exercise }} · {{ record.weight }} kg · {{ record.date }}</li>{% else %}<li>No new weight records this week.</li>{% endfor %}</ul>
+    </details>
+</section>

@@ -1,0 +1,17 @@
+<section id="section-nutrition" role="tabpanel" aria-labelledby="tab-nutrition" tabindex="0" class="tab-panel space-y-6 hidden">
+    <div class="workspace-card rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl space-y-5">
+        <div><p class="eyebrow">DAILY FUEL</p><h2 class="text-lg font-semibold text-emerald-500">Nutrition tracking</h2><p class="text-sm text-slate-400">Record calories, macros, hydration, and notes alongside your training.</p></div>
+        <form action="{{ url_for('main.save_nutrition') }}" method="POST" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="profile_id" value="{{ active_profile_id }}">
+            <label class="field-label">Date<input class="form-control" type="date" name="date" value="{{ today }}" required></label>
+            <label class="field-label">Calories<input class="form-control" type="number" name="calories" min="0" step="1" placeholder="2400"></label>
+            <label class="field-label">Protein (g)<input class="form-control" type="number" name="protein" min="0" step="0.1" placeholder="160"></label>
+            <label class="field-label">Carbs (g)<input class="form-control" type="number" name="carbs" min="0" step="0.1"></label>
+            <label class="field-label">Fat (g)<input class="form-control" type="number" name="fat" min="0" step="0.1"></label>
+            <label class="field-label">Water (L)<input class="form-control" type="number" name="water" min="0" step="0.1"></label>
+            <label class="field-label sm:col-span-2 lg:col-span-3">Notes<textarea class="form-control" name="notes" rows="2" maxlength="500" placeholder="Meals, appetite, supplements..."></textarea></label>
+            <button class="rounded-lg bg-emerald-700 px-4 py-3 font-medium hover:bg-emerald-600" type="submit">Save nutrition</button>
+        </form>
+    </div>
+    <div class="workspace-card rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl"><h3 class="font-semibold text-emerald-500 mb-4">Recent entries{% if active_profile_name %} · {{ active_profile_name }}{% endif %}</h3>{% if nutrition %}<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-slate-400"><th class="py-2">Date</th><th>Calories</th><th>Protein</th><th>Carbs</th><th>Fat</th><th>Water</th><th></th></tr></thead><tbody>{% for item in nutrition|sort(attribute='date', reverse=true) %}<tr class="border-t border-slate-800"><td class="py-3">{{ item.date }}</td><td>{{ item.calories|default('—') }}</td><td>{{ item.protein|default('—') }}g</td><td>{{ item.carbs|default('—') }}g</td><td>{{ item.fat|default('—') }}g</td><td>{{ item.water|default('—') }}L</td><td class="text-right"><form method="POST" action="{{ url_for('main.delete_nutrition', entry_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-rose-300 underline" type="submit">Delete</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-sm text-slate-400">No nutrition entries yet.</p>{% endif %}</div>
+</section>

@@ -2,9 +2,15 @@
   "name": "IronTrack Workout Logger",
   "short_name": "IronTrack",
   "start_url": "/",
+  "id": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "description": "Offline-first workout, nutrition, and progress tracking.",
   "background_color": "#020617",
   "theme_color": "#020617",
+  "shortcuts": [{"name": "Log workout", "url": "/?tab=log"}, {"name": "History", "url": "/?tab=history"}],
   "icons": [
     {
       "src": "/static/icon.svg",

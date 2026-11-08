@@ -1,0 +1,112 @@
+        <section id="section-progress" role="tabpanel" aria-labelledby="tab-progress" tabindex="0" class="tab-panel space-y-6 hidden">
+            {% include "sections/weekly_review.html" %}
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                <div>
+                    <h2 class="text-lg font-semibold text-emerald-500">Exercise Progress</h2>
+                    <p class="text-sm text-slate-400 mt-1">Track strength records and cardio distance or duration trends.</p>
+                </div>
+                <section id="weekly-dashboard" class="weekly-dashboard rounded-xl border border-emerald-900/50 bg-emerald-950/30 p-4" aria-labelledby="weekly-dashboard-title">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 id="weekly-dashboard-title" class="font-medium text-emerald-300">This week at a glance</h3>
+                            <p class="text-xs text-slate-400">Rolling 7-day training summary</p>
+                        </div>
+                        <span class="text-xs text-slate-400">{{ training_insights.recovery_note }}</span>
+                    </div>
+                    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div class="weekly-stat"><strong>{{ training_insights.training_days }}</strong><span>training days</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.weekly_sets }}</strong><span>working sets</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.recent_week_volume }}</strong><span>kg × reps</span></div>
+                        <div class="weekly-stat"><strong>{{ training_insights.streak }}</strong><span>day streak</span></div>
+                    </div>
+                    <p class="mt-3 text-xs text-slate-400">Prior 3-week average: {{ training_insights.prior_week_average }} kg × reps</p>
+                    {% if training_insights.deload_recommendation %}<p class="mt-3 rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200" role="status">{{ training_insights.deload_recommendation }}</p>{% endif %}
+                </section>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label class="field-label">Exercise
+                        <select id="progress-exercise" onchange="renderProgressChart()" class="form-control">
+                            {% for exercise in exercise_names %}<option value="{{ exercise }}">{{ exercise }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label class="field-label">Metric
+                        <select id="progress-metric" onchange="renderProgressChart()" class="form-control">
+                            <option value="weight">Best weight</option><option value="reps">Best reps</option><option value="volume">Total volume</option>
+                            <option value="estimated-1rm">Estimated 1RM (Epley)</option>
+                            <option value="cardio-distance">Cardio distance</option><option value="cardio-duration">Cardio duration</option>
+                        </select>
+                    </label>
+                    <label class="field-label">Date range
+                        <select id="progress-range" onchange="renderProgressChart()" class="form-control">
+                            <option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option>
+                        </select>
+                    </label>
+                </div>
+                <p id="progress-records" class="text-sm text-slate-300" aria-live="polite"></p>
+                <p id="progress-summary" class="text-sm text-slate-300" aria-live="polite"></p>
+                <div id="progress-kpis" class="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Progress summary">
+                    <div class="weekly-stat"><strong id="progress-kpi-latest">—</strong><span>latest recorded value</span></div>
+                    <div class="weekly-stat"><strong id="progress-kpi-best">—</strong><span>best in selected range</span></div>
+                    <div class="weekly-stat"><strong id="progress-kpi-dates">—</strong><span>workout dates</span></div>
+                </div>
+                <div id="progress-chart-content">
+                    <div class="chart-container"><svg id="progress-chart" viewBox="0 0 800 300" role="img" aria-label="Exercise progress chart" aria-describedby="progress-summary progress-chart-data"></svg></div>
+                    <ul id="progress-chart-data" class="chart-data-list" aria-label="Chart data points"></ul>
+                </div>
+                <div id="progress-empty" class="empty-state hidden">
+                    <span class="empty-state-icon" aria-hidden="true">↗</span>
+                    <h3>No progress data for this view yet</h3>
+                    <p id="progress-empty-message">Log a few workouts to see exercise trends here.</p>
+                    <button type="button" class="empty-state-action" onclick="switchTab('log')">Log a workout</button>
+                </div>
+                <details id="progress-more-details" class="progress-details">
+                    <summary>
+                        <span><strong>More progress insights</strong><small>Personal records, muscle volume, and training consistency</small></span>
+                    </summary>
+                    <div class="progress-details-content">
+                        <section id="personal-records-section" class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="personal-records-title">
+                            <h3 id="personal-records-title" class="font-medium text-emerald-400">Personal record milestones</h3>
+                            <ul id="personal-record-history" class="mt-2 space-y-2 text-sm text-slate-300"></ul>
+                            <p id="personal-record-empty" class="mt-2 text-sm text-slate-500">Log more workouts to build a milestone history.</p>
+                        </section>
+                        <section class="rounded-xl border border-slate-800 bg-slate-950 p-4" aria-labelledby="muscle-volume-heading">
+                            <div class="flex flex-wrap items-end justify-between gap-3">
+                                <div><h3 id="muscle-volume-heading" class="font-medium text-emerald-400">Weekly muscle volume</h3>
+                                    <p class="mt-1 text-sm text-slate-400">Working and drop sets only; weights are normalized to kg × reps.</p></div>
+                                <label class="field-label">Muscle group
+                                    <select id="muscle-volume-category" onchange="renderMuscleVolumeChart()" class="form-control">
+                                        {% for category in exercises.keys() %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
+                                    </select>
+                                </label>
+                            </div>
+                            <p id="muscle-volume-summary" class="mt-3 text-sm text-slate-300" aria-live="polite"></p>
+                            <p id="muscle-balance-insight" class="muscle-balance-insight" role="status" aria-live="polite"></p>
+                            <div class="chart-container"><svg id="muscle-volume-chart" viewBox="0 0 800 300" role="img" aria-label="Weekly muscle volume chart" aria-describedby="muscle-volume-summary muscle-volume-data"></svg></div>
+                            <ul id="muscle-volume-data" class="chart-data-list" aria-label="Weekly muscle volume data"></ul>
+                        </section>
+                        <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3" aria-labelledby="training-insights-title">
+                            <div>
+                                <h3 id="training-insights-title" class="font-medium text-emerald-400">Training insights</h3>
+                                <p id="training-consistency" class="mt-1 text-sm text-slate-300" aria-live="polite">
+                                    Last 7 days: {{ training_insights.training_days }} training day(s) · Current streak: {{ training_insights.streak }} day(s)
+                                </p>
+                                <p class="mt-1 text-sm text-slate-400">{{ training_insights.recovery_note }}</p>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-slate-300">Last 7 days: strength volume by muscle</h4>
+                                {% if training_insights.weekly_volume %}
+                                <ul class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {% for item in training_insights.weekly_volume %}
+                                    <li class="flex justify-between gap-3 rounded-lg border border-slate-800 px-3 py-2 text-sm">
+                                        <span>{{ item.muscle }} <span class="text-slate-500">({{ item.sets }} sets)</span></span>
+                                        <span class="font-medium text-emerald-400">{{ item.volume }} kg × reps</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}<p class="mt-2 text-sm text-slate-500">No strength sets recorded in the last 7 days.</p>{% endif %}
+                            </div>
+                        </section>
+                    </div>
+                </details>
+            </div>
+        </section>
+

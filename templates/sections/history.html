@@ -1,0 +1,216 @@
+        <section id="section-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" class="tab-panel space-y-6 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-3">
+                        <h2 class="text-lg font-semibold text-emerald-500">Workout Logs</h2>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="{{ url_for('main.export_workouts_csv') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">Export workout CSV</a>
+                        <a href="{{ url_for('main.export_backup') }}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium">📥 Export Backup</a>
+                    </div>
+                </div>
+                <form action="{{ url_for('main.index') }}" method="GET" class="flex flex-wrap items-end gap-3">
+                    <input type="hidden" name="tab" value="history">
+                    <div class="field-label">
+                        <label for="history-date">Show workouts for</label>
+                        <div class="date-picker-control">
+                            <input type="date" id="history-date" name="date" value="{{ selected_date }}" class="form-control">
+                            <button type="button" class="date-picker-button" onclick="openDatePicker('history-date')" aria-label="Open history date picker">📅</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl">Filter</button>
+                    {% if selected_date %}<a href="{{ url_for('main.index', tab='history') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl">Show all</a>{% endif %}
+                </form>
+                <div class="history-search-row">
+                    <label class="field-label flex-1" for="history-search">Search logged workouts
+                        <input type="search" id="history-search" class="form-control" placeholder="Search workout, exercise, category, or notes..." autocomplete="off">
+                    </label>
+                    <label class="field-label history-filter-field" for="history-type-filter">Set type
+                        <select id="history-type-filter" class="form-control">
+                            <option value="">All types</option>
+                            <option value="working">Working</option>
+                            <option value="warmup">Warm-up</option>
+                            <option value="drop">Drop</option>
+                            <option value="failure">To failure</option>
+                            <option value="cardio">Cardio</option>
+                        </select>
+                    </label>
+                    <label class="field-label history-filter-field" for="history-muscle-filter">Muscle group
+                        <select id="history-muscle-filter" class="form-control">
+                            <option value="">All groups</option>
+                            {% for category in exercises.keys() %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <button type="button" id="history-search-clear" class="history-search-clear hidden" onclick="clearHistorySearch()">Clear</button>
+                    <span id="history-search-status" class="text-sm text-slate-400" aria-live="polite"></span>
+                </div>
+                <form id="bulk-history-form" action="{{ url_for('main.bulk_delete_workouts') }}" method="POST" class="bulk-history-toolbar" onsubmit="return confirmBulkHistoryDelete(event)">
+                    <input type="hidden" name="entry_ids" id="bulk-history-entry-ids">
+                    <label class="history-select-all"><input type="checkbox" id="history-select-all"> Select visible</label>
+                    <span id="bulk-history-count" class="text-sm text-slate-400">0 sets selected</span>
+                    <button type="submit" id="bulk-history-delete" class="bulk-history-delete" disabled>Delete selected</button>
+                </form>
+                <details id="history-calendar" class="history-disclosure bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3" open>
+                    <summary class="history-disclosure-summary">
+                        <span>Activity calendar</span>
+                        <span class="history-disclosure-detail">{{ calendar_month }}</span>
+                    </summary>
+                    <div class="pt-3 space-y-3">
+                        <div class="flex flex-wrap justify-between items-center gap-3">
+                            <h3 class="font-semibold text-emerald-500">{{ calendar_month }}</h3>
+                            <div class="flex gap-2">
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=previous_month) }}" aria-label="Previous month">←</a>
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm" href="{{ url_for('main.index', tab='history') }}">This month</a>
+                                <a class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700" href="{{ url_for('main.index', tab='history', month=next_month) }}" aria-label="Next month">→</a>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
+                            {% for weekday in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}<div class="py-1">{{ weekday }}</div>{% endfor %}
+                            {% for day in calendar_days %}
+                                {% if day.date %}
+                                <a href="{{ url_for('main.index', tab='history', date=day.date, month=calendar_month_value) }}" class="calendar-day rounded-lg p-1 sm:p-2 {{ 'calendar-day-active' if day.count else '' }} {{ 'calendar-day-selected' if day.date == selected_date else '' }}" title="{{ day.count }} set(s)" aria-label="{{ day.date }}: {{ day.count }} set(s)">
+                                    <span>{{ day.day }}</span>{% if day.count %}<span class="calendar-day-count block text-[0.65rem]">{{ day.count }} sets</span>{% endif %}
+                                </a>
+                                {% else %}<div></div>{% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </details>
+                <form action="{{ url_for('main.import_backup') }}" method="POST" enctype="multipart/form-data" class="p-4 border border-dashed border-slate-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                    <input type="file" name="backup_file" accept=".json,application/json" required class="text-sm text-slate-400">
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium">Restore Backup</button>
+                </form>
+                <form id="csv-import-form" action="{{ url_for('main.import_workouts_csv') }}" method="POST" enctype="multipart/form-data" class="p-4 border border-dashed border-slate-700 rounded-xl space-y-2">
+                    <div>
+                        <p class="font-medium">Import workout CSV</p>
+                        <p class="text-xs text-slate-400">Compatible with common Strong, Hevy, FitNotes, and IronTrack exports. Existing workouts are kept.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input type="file" name="workouts_file" id="workouts-file" accept=".csv,text/csv" required class="min-w-0 flex-1 text-sm text-slate-400">
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium">Import CSV</button>
+                    </div>
+                    <div id="csv-import-preview" class="csv-import-preview hidden" aria-live="polite"></div>
+                </form>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <a href="{{ url_for('main.export_backup') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 hover:bg-slate-700">Export JSON backup</a>
+                    <a href="{{ url_for('main.export_database') }}" class="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 hover:bg-slate-700">Download SQLite backup</a>
+                    <span class="text-xs text-slate-500">SQLite backups include your complete local database.</span>
+                </div>
+                <div class="history-list">
+                    {% for group in workout_groups %}
+                    <article class="history-workout rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                        <a class="text-sm underline text-emerald-300" href="{{ url_for('main.export_session_pdf', session_id=group.id) }}">Export PDF report</a>
+                        <div class="flex flex-wrap justify-between items-center gap-2">
+                            <h3 class="font-semibold text-emerald-500">{{ group.name }} <span class="text-sm font-normal text-slate-400">· {{ group.date }}</span></h3>
+                            <span class="text-sm text-slate-400">{{ group.sets|length }} set{% if group.sets|length != 1 %}s{% endif %}{% if group.duration %} · {{ '%02d'|format(group.duration // 60) }}:{{ '%02d'|format(group.duration % 60) }}{% endif %}</span>
+                        </div>
+                        <details class="history-workout-actions border-t border-slate-800 pt-3" open>
+                            <summary class="history-disclosure-summary">Workout actions <span class="history-disclosure-detail">Repeat, edit, or delete</span></summary>
+                            <div class="mt-3 space-y-3">
+                                <form action="{{ url_for('main.duplicate_session') }}" method="POST" class="history-repeat-form flex flex-wrap items-end gap-2">
+                                    <input type="hidden" name="session_id" value="{{ group.id }}">
+                                    <label class="field-label">Repeat workout on
+                                        <input type="date" name="date" required value="{{ today }}" class="form-control">
+                                    </label>
+                                    <button type="submit" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Repeat workout</button>
+                                </form>
+                                <details class="border-t border-slate-800 pt-3">
+                                    <summary class="cursor-pointer text-sm text-emerald-500 hover:text-emerald-400">Edit workout name or date</summary>
+                                    <form action="{{ url_for('main.edit_session') }}" method="POST" class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <input type="hidden" name="session_id" value="{{ group.id }}">
+                                <input type="hidden" name="original_date" value="{{ group.date }}">
+                                <label class="field-label">Workout name
+                                    <input type="text" name="session_name" maxlength="100" value="{{ group.name }}" class="form-control">
+                                </label>
+                                <label class="field-label">Workout date
+                                    <input type="date" name="date" required value="{{ group.date }}" class="form-control">
+                                </label>
+                                <button type="submit" class="self-end px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">Save workout</button>
+                                    </form>
+                                </details>
+                                <form action="{{ url_for('main.delete_session') }}" method="POST" class="history-delete-form flex justify-end" onsubmit="return confirm('Delete this entire workout and all {{ group.sets|length }} of its sets? This cannot be undone.')">
+                                    <input type="hidden" name="session_id" value="{{ group.id }}">
+                                    <input type="hidden" name="date" value="{{ group.date }}">
+                                    <button type="submit" class="text-sm text-rose-500 hover:text-rose-400">Delete entire workout</button>
+                                </form>
+                            </div>
+                        </details>
+                        {% for item in group.sets|reverse %}
+                        {% set log = item.workout %}
+                        <div class="border-t border-slate-800 pt-3" data-swipe-set="{{ item.index }}" data-history-set data-set-type="{{ log.get('set_type', 'working') }}" data-muscle="{{ log.muscle }}">
+                            <div class="flex flex-wrap justify-between items-center gap-3">
+                                <div>
+                                    <label class="history-select-label"><input type="checkbox" class="history-set-checkbox" value="{{ log.entry_id }}" aria-label="Select {{ log.exercise }} set"> <span>Select</span></label>
+                                    <span class="font-medium">{{ log.exercise }}</span>{% if log.get('routine_exercise') and log.routine_exercise != log.exercise %}<span class="text-xs text-slate-400"> · replaces {{ log.routine_exercise }}</span>{% endif %}
+                                    {% if log.get('superset_group') %}<span class="text-xs text-emerald-400"> · Superset {{ log.superset_group }}</span>{% endif %}
+                                    {% if log.get('set_type') == 'cardio' %}
+                                    <span class="text-sm text-slate-400"> · {{ log.muscle }} · Cardio{% if log.get('distance') %} · {{ log.distance }} {{ log.get('distance_unit', 'km') }}{% endif %}{% if log.get('duration') %} · {{ log.duration }} min{% endif %}</span>
+                                    {% else %}
+                                    <span class="text-sm text-slate-400"> · {{ log.muscle }} · {{ log.get('set_type', 'working')|title }} · {% if log.get('bodyweight') or log.weight|string == '0' %}Bodyweight{% else %}{{ log.weight }} {{ log.get('unit', 'kg') }}{% endif %} × {{ log.reps }} · RPE {{ log.rpe }}</span>
+                                    {% endif %}
+                                    {% if log.get('notes') %}<p class="mt-1 text-sm text-slate-400">{{ log.notes }}</p>{% endif %}
+                                </div>
+                                <div class="flex gap-3">
+                                    <button type="button" class="text-emerald-500 hover:text-emerald-400 text-sm" onclick="toggleEditSet({{ item.index }})">Edit</button>
+                                    <form action="{{ url_for('main.delete_workout', entry_id=item.workout.entry_id) }}" method="POST" onsubmit="return confirm('Delete this set?')">
+                                        <button type="submit" class="text-rose-500 hover:text-rose-400 text-sm">Delete</button>
+                                    </form>
+                                    <button type="button" class="text-sm text-slate-300 hover:text-white" onclick="copyWorkoutSet({{ item.index }})">Copy set to logger</button>
+                                </div>
+                            </div>
+                            <form id="edit-set-{{ item.index }}" action="{{ url_for('main.edit_workout', entry_id=item.workout.entry_id) }}" method="POST" class="edit-set-form hidden mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <label class="field-label">Date<input type="date" name="date" required value="{{ log.date }}" class="form-control"></label>
+                                <label class="field-label">Workout name<input type="text" name="session_name" maxlength="100" value="{{ log.get('session_name', group.name) }}" class="form-control"></label>
+                                <label class="field-label">Category
+                                    <select name="muscle" class="form-control" onchange="updateEditExercises({{ item.index }})">
+                                        {% for category in exercises.keys() %}<option value="{{ category }}" {% if category == log.muscle %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                                    </select>
+                                </label>
+                                <label class="field-label">Exercise
+                                    <select name="exercise" class="form-control">
+                                        {% for exercise in exercises.get(log.muscle, []) %}<option value="{{ exercise }}" {% if exercise == log.exercise %}selected{% endif %}>{{ exercise }}</option>{% endfor %}
+                                    </select>
+                                </label>
+                                <label class="field-label">Set type
+                                    <select name="set_type" class="form-control" onchange="toggleEditCardioFields({{ item.index }})">
+                                        {% for type, label in [('working', 'Working set'), ('warmup', 'Warm-up'), ('drop', 'Drop set'), ('failure', 'To failure'), ('cardio', 'Cardio')] %}
+                                        <option value="{{ type }}" {% if log.get('set_type', 'working') == type %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <div id="edit-strength-{{ item.index }}" class="edit-strength-fields contents">
+                                <label class="field-label">Weight<input type="number" name="weight" step="0.5" min="0" value="{{ log.weight }}" class="form-control"></label>
+                                <label class="field-label">Reps<input type="number" name="reps" min="1" value="{{ log.reps }}" class="form-control"></label>
+                                <label class="field-label">RPE<input type="number" name="rpe" min="1" max="10" value="{{ log.rpe }}" class="form-control"></label>
+                                </div>
+                                <label class="field-label">Unit<select name="unit" class="form-control"><option value="kg" {% if log.get('unit', 'kg') == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if log.get('unit') == 'lb' %}selected{% endif %}>lb</option></select></label>
+                                <div id="edit-cardio-{{ item.index }}" class="edit-cardio-fields contents hidden">
+                                    <label class="field-label">Distance<input type="number" name="distance" min="0" step="0.1" value="{{ log.get('distance', '') }}" class="form-control"></label>
+                                    <label class="field-label">Distance unit<select name="distance_unit" class="form-control"><option value="km" {% if log.get('distance_unit', 'km') == 'km' %}selected{% endif %}>km</option><option value="mi" {% if log.get('distance_unit') == 'mi' %}selected{% endif %}>mi</option></select></label>
+                                    <label class="field-label">Duration (min)<input type="number" name="duration" min="1" value="{{ log.get('duration', '') }}" class="form-control"></label>
+                                </div>
+                                <label class="field-label sm:col-span-2 lg:col-span-4">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ log.get('notes', '') }}</textarea></label>
+                                <div class="sm:col-span-2 lg:col-span-4 flex gap-2">
+                                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg">Save changes</button>
+                                    <button type="button" onclick="toggleEditSet({{ item.index }})" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </article>
+                    {% else %}
+                    <div class="empty-state">
+                        <span class="empty-state-icon" aria-hidden="true">◷</span>
+                        <h3>{% if selected_date %}No workouts on {{ selected_date }}{% else %}Your workout history starts here{% endif %}</h3>
+                        <p>{% if selected_date %}Try another date or start logging a workout.{% else %}Log your first set and it will appear here, grouped by workout date and session.{% endif %}</p>
+                        <button type="button" class="empty-state-action" onclick="switchTab('log')">Log a workout</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div id="history-search-empty" class="empty-state hidden" role="status">
+                    <span class="empty-state-icon" aria-hidden="true">⌕</span>
+                    <h3>No matching workouts</h3>
+                    <p>Try a different search, set type, or muscle group—or clear the filters to see everything.</p>
+                    <button type="button" class="empty-state-action" onclick="clearHistorySearch()">Clear search</button>
+                </div>
+            </div>
+        </section>
+

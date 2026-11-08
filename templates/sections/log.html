@@ -1,0 +1,335 @@
+        <section id="section-log" role="tabpanel" aria-labelledby="tab-log" tabindex="0" class="tab-panel space-y-6">
+            <div class="log-main-column">
+            <div class="workspace-card log-entry-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">TRAINING SESSION</p>
+                        <h2 class="text-lg font-semibold text-emerald-500">Log a set</h2>
+                    </div>
+                    <span class="entry-hint">{{ settings.gym_name }} · Choose an exercise, enter the set, save.</span>
+                </div>
+                <form action="{{ url_for('main.log_workout') }}" method="POST" class="space-y-4">
+                    <input type="hidden" name="entry_id" class="entry-id">
+                    <input type="hidden" name="routine_id" id="workout-routine-id" value="{{ active_session_routine_id }}">
+                    <input type="hidden" name="routine_slot" id="workout-routine-slot" value="">
+                    <input type="hidden" name="routine_exercise" id="workout-routine-exercise" value="">
+                    <input type="hidden" name="elapsed_seconds" id="elapsed-seconds" value="0">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 compact-optional">
+                        <div class="field-label">
+                            <label for="workout-date">Workout date</label>
+                            <div class="date-picker-control">
+                                <input type="date" id="workout-date" name="date" required value="{{ today }}" class="form-control">
+                                <button type="button" class="date-picker-button" onclick="openDatePicker('workout-date')" aria-label="Open workout date picker">📅</button>
+                            </div>
+                            <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                                <input type="checkbox" name="bodyweight" value="1" id="bodyweight-set" onchange="toggleBodyweightSet()">
+                                Bodyweight set (no external load)
+                            </label>
+                        </div>
+                        <label class="field-label">Muscle group
+                            <select name="muscle" id="muscle-select" onchange="updateExercises()" required class="form-control">
+                                {% for group in exercises.keys() %}
+                                <option value="{{ group }}">{{ group }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="field-label">Workout name
+                            <input type="text" name="session_name" id="session-name" maxlength="100" value="{{ active_session_name or 'Workout' }}" class="form-control">
+                        </label>
+                        <div class="field-label">Workout session
+                            <div class="flex gap-2">
+                                <span id="session-indicator" class="form-control flex-1 text-slate-400">Current session</span>
+                                <input type="hidden" name="session_id" id="session-id" value="{{ active_session_id }}">
+                                <button type="button" onclick="startNewWorkoutSession()" class="mt-1 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700">New session</button>
+                            </div>
+                        </div>
+                    </div>
+                    <label class="field-label">Exercise
+                        <select name="exercise" id="exercise-select" onchange="showExerciseHistory(); renderQuickExercises()" required class="form-control"></select>
+                    </label>
+                    <div class="space-y-2">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quick picks</span>
+                            <button type="button" id="favorite-exercise-toggle" onclick="toggleFavoriteExercise()" class="text-sm text-amber-400">☆ Favorite this exercise</button>
+                        </div>
+                        <div id="quick-exercises" class="flex flex-wrap gap-2" aria-label="Recent and favorite exercises"></div>
+                    </div>
+                    <details class="set-options">
+                        <summary>Set details <span>Type, units, superset, effort, and notes</span></summary>
+                        <div class="set-options-content">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label class="field-label">Set type
+                                    <select name="set_type" id="set-type" onchange="toggleCardioFields()" aria-label="Set type" class="form-control">
+                                        <option value="working">Working set</option><option value="warmup">Warm-up</option>
+                                        <option value="drop">Drop set</option><option value="failure">To failure</option><option value="cardio">Cardio</option>
+                                    </select>
+                                </label>
+                                <label class="field-label">Weight unit
+                                    <select name="unit" id="weight-unit" class="form-control"><option value="kg">kg</option><option value="lb">lb</option></select>
+                                </label>
+                                <label class="field-label">Superset group
+                                    <select name="superset_group" class="form-control">
+                                        <option value="">No superset</option>
+                                        {% for group in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ group }}">Superset {{ group }}</option>{% endfor %}
+                                    </select>
+                                </label>
+                                <label class="field-label">RPE / intensity
+                                    <input type="number" min="1" max="10" name="rpe" id="set-rpe" required value="7" class="form-control">
+                                </label>
+                            </div>
+                            <div id="cardio-fields" class="hidden grid grid-cols-2 gap-3 sm:gap-4">
+                                <label class="field-label">Distance
+                                    <input type="number" min="0" step="0.1" name="distance" id="set-distance" placeholder="e.g. 5" class="form-control">
+                                </label>
+                                <label class="field-label">Distance unit
+                                    <select name="distance_unit" id="distance-unit" class="form-control"><option value="km">km</option><option value="mi">mi</option></select>
+                                </label>
+                                <label class="field-label">Duration (minutes)
+                                    <input type="number" min="1" step="1" name="duration" id="set-duration" placeholder="e.g. 30" class="form-control">
+                                </label>
+                            </div>
+                            <label class="field-label">Set notes <span class="normal-case tracking-normal text-slate-400">(optional)</span>
+                                <textarea name="notes" maxlength="500" rows="2" placeholder="Form, equipment, or how it felt" class="form-control"></textarea>
+                            </label>
+                        </div>
+                    </details>
+                    <div id="strength-fields" class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                        <label class="field-label">Weight
+                            <input type="number" step="0.01" min="0" name="weight" id="set-weight" required value="0" class="form-control">
+                        </label>
+                        <div class="plate-calculator-control">
+                            <span class="field-label">Plate calculator</span>
+                            <button type="button" class="secondary-action" onclick="calculatePlates()">Calculate plates</button>
+                            <output id="plate-calculator-result" class="plate-calculator-result" aria-live="polite"></output>
+                        </div>
+                        <label class="field-label">Reps
+                            <input type="number" min="1" name="reps" id="set-reps" required value="10" class="form-control">
+                        </label>
+                    </div>
+                    <div class="rounded-xl border border-slate-700 p-3 space-y-2">
+                        <p id="last-performance" class="text-sm" aria-live="polite">Choose an exercise to see your last set.</p>
+                        <p id="next-target" class="text-sm text-emerald-400" aria-live="polite"></p>
+                        <button type="button" onclick="copyPreviousSet()" class="rounded-lg bg-slate-800 px-3 py-2 text-sm">Repeat last set</button>
+                        <button type="button" onclick="document.body.classList.toggle('workout-focus')" class="rounded-lg bg-slate-800 px-3 py-2 text-sm">Toggle workout focus</button>
+                        <button type="button" id="compact-log-toggle" onclick="toggleCompactLog()" class="rounded-lg bg-slate-800 px-3 py-2 text-sm">Compact mode</button>
+                    </div>
+                    <div class="quick-log-controls">
+                        <label class="field-label">Weight step <select id="weight-increment" class="form-control"><option>0.5</option><option>1</option><option selected>2.5</option><option>5</option><option>10</option></select></label>
+                        <div><button type="button" aria-label="Decrease weight" onclick="adjustLogger('set-weight', -Number(document.getElementById('weight-increment').value))">− weight</button><button type="button" aria-label="Increase weight" onclick="adjustLogger('set-weight', Number(document.getElementById('weight-increment').value))">+ weight</button></div>
+                        <div><button type="button" aria-label="Decrease reps" onclick="adjustLogger('set-reps', -1)">− rep</button><button type="button" aria-label="Increase reps" onclick="adjustLogger('set-reps', 1)">+ rep</button></div>
+                        <p id="quick-log-status" class="text-xs text-emerald-400" role="status"></p>
+                    </div>
+                    <p id="training-status" class="text-sm text-slate-300" aria-live="polite"></p>
+                    <progress id="rep-target-progress" max="1" value="0" aria-label="Sets reaching rep target" class="w-full"></progress>
+                    <p id="logger-set-type" class="text-xs text-slate-500" aria-live="polite">Working set · kg · RPE 7</p>
+                    <p id="logger-validation-message" class="logger-validation-message" role="alert" aria-live="assertive"></p>
+                    <p id="draft-status" class="text-xs text-emerald-400" aria-live="polite"></p>
+                    <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition">Log Set</button>
+                </form>
+                <details class="set-options mt-3">
+                    <summary>Add a new exercise</summary>
+                    <form action="{{ url_for('main.add_library_exercise') }}" method="POST" class="mt-3 flex flex-col sm:flex-row gap-2" onsubmit="prepareLogExerciseForm(event)">
+                        <input type="hidden" name="muscle" id="log-add-exercise-muscle">
+                        <input type="hidden" name="return_tab" value="log">
+                        <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                        <label class="sr-only" for="log-add-exercise-name">New exercise name</label>
+                        <input type="text" name="exercise_name" id="log-add-exercise-name" maxlength="100" required placeholder="e.g., Cable Crossovers" class="form-control flex-1">
+                        <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg">Add exercise</button>
+                    </form>
+                </details>
+            </div>
+
+            <div class="workspace-card active-workout-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-2">
+                    <h2 class="text-lg font-semibold text-emerald-500">Workout in progress{% if active_session_name %}: {{ active_session_name }}{% endif %}</h2>
+                    <p id="session-duration" class="session-status" data-elapsed="{{ active_session_duration }}" data-finished="{{ 'true' if active_session_finished else 'false' }}" data-started="{{ 'true' if active_session_started else 'false' }}">Duration: --:--</p>
+                    <button id="start-workout" type="button" onclick="startWorkoutClock()" class="px-3 py-2 rounded-lg bg-emerald-700 text-sm text-white">Start workout</button>
+                    <details id="routine-substitution" class="hidden w-full rounded-lg border border-slate-700 p-3">
+                        <summary>Swap current routine exercise</summary>
+                        <p class="text-xs text-slate-400">Keep set and rep targets for this session. Start with a suitable weight for the replacement.</p>
+                        <label class="field-label">Replacement exercise<select id="substitution-exercise" class="form-control"></select></label>
+                        <button type="button" onclick="substituteRoutineExercise()" class="rounded-lg bg-emerald-700 p-3 mt-2">Use replacement</button>
+                        <button type="button" onclick="substituteRoutineExercise(true)" class="rounded-lg bg-slate-800 p-3 mt-2">Restore planned exercise</button>
+                        <p id="substitution-status" role="status" class="text-sm mt-2"></p>
+                    </details>
+                    <p id="routine-target" class="hidden w-full text-sm text-emerald-300" role="status"></p>
+                    <ul id="routine-set-checklist" class="hidden w-full grid grid-cols-1 sm:grid-cols-2 gap-2" aria-label="Routine set completion"></ul>
+                    <p id="routine-checklist-summary" class="hidden w-full text-xs text-slate-400"></p>
+                    <button id="next-routine-exercise" type="button" onclick="advanceRoutine()" class="hidden px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg">Next routine exercise</button>
+                </div>
+                <div class="session-summary" aria-label="Current workout summary">
+                    <div><strong>{{ active_session_set_count }}</strong><span>sets</span></div>
+                    <div><strong>{{ active_session_exercise_count }}</strong><span>exercises</span></div>
+                    <div><strong>{{ active_session_volume|round(1) }}</strong><span>kg × reps</span></div>
+                    <div><strong id="session-summary-duration">--:--</strong><span>duration</span></div>
+                </div>
+                {% if active_session_id and active_session_sets and not active_session_finished %}
+                <form id="session-structure-form" action="{{ url_for('main.update_session_structure') }}" method="POST" class="flex flex-wrap items-center justify-between gap-2">
+                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                    <input type="hidden" name="exercise_order">
+                    <input type="hidden" name="superset_groups">
+                    <span class="text-xs text-slate-400">Reorder exercises or assign matching superset groups.</span>
+                    <button type="submit" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Save workout structure</button>
+                </form>
+                <form id="finish-session-form" action="{{ url_for('main.finish_session') }}" method="POST" class="flex justify-end">
+                    <input type="hidden" name="session_id" value="{{ active_session_id }}">
+                    <input type="hidden" name="elapsed_seconds" value="{{ active_session_duration }}">
+                    <button type="submit" class="px-3 py-2 border border-slate-700 rounded-lg text-sm">Finish workout</button>
+                </form>
+                {% endif %}
+                <div id="active-session-exercises" class="space-y-3">
+                    {% for group in active_session_groups %}
+                    <div class="active-exercise-group border border-slate-800 rounded-xl p-3" data-exercise="{{ group.exercise }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="font-medium text-emerald-400">{{ group.exercise }}{% if group.superset_group %} <span class="text-xs text-slate-400">· Superset {{ group.superset_group }}</span>{% endif %}</h3>
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="move-exercise-up rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} up">↑</button>
+                                <button type="button" class="move-exercise-down rounded bg-slate-800 px-2 py-1 text-xs" aria-label="Move {{ group.exercise }} down">↓</button>
+                                <select class="exercise-superset form-control !mt-0 !w-auto !py-1 text-xs" aria-label="Superset group for {{ group.exercise }}">
+                                    <option value="" {% if not group.superset_group %}selected{% endif %}>No superset</option>
+                                    {% for superset in ['A', 'B', 'C', 'D', 'E'] %}<option value="{{ superset }}" {% if group.superset_group == superset %}selected{% endif %}>Group {{ superset }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        {% if group.previous %}
+                        <p class="mt-2 text-xs text-slate-400">Previous workout · {{ group.previous.date }} ·
+                            {% if group.previous.get('set_type') == 'cardio' %}
+                                {{ group.previous.get('distance', '') }} {{ group.previous.get('distance_unit', 'km') }} · {{ group.previous.get('duration', '') }} min
+                            {% else %}
+                                {% if group.previous.get('bodyweight') or group.previous.weight|string == '0' %}Bodyweight{% else %}{{ group.previous.weight }} {{ group.previous.get('unit', 'kg') }}{% endif %} × {{ group.previous.reps }}
+                            {% endif %}
+                        </p>
+                        {% endif %}
+                        <button type="button" onclick="copyWorkoutSet({{ group.sets[-1].index }})" class="mt-2 underline text-sm">Repeat latest {{ group.exercise }} set</button>
+                        <ul class="mt-2 space-y-1 text-sm text-slate-300">
+                            {% for item in group.sets %}
+                            {% set set = item.workout %}
+                            <li>
+                                {% if set.get('set_type') == 'cardio' %}
+                                    Cardio{% if set.get('distance') %} · {{ set.distance }} {{ set.get('distance_unit', 'km') }}{% endif %}{% if set.get('duration') %} · {{ set.duration }} min{% endif %}
+                                {% else %}
+                                    {{ set.get('set_type', 'working')|title }} · {% if set.get('bodyweight') or set.weight|string == '0' %}Bodyweight{% else %}{{ set.weight }} {{ set.get('unit', 'kg') }}{% endif %} × {{ set.reps }}{% if set.get('rpe') %} · RPE {{ set.rpe }}{% endif %}
+                                {% endif %}
+                                {% if set.get('notes') %} — {{ set.notes }}{% endif %}
+                                <details class="mt-2">
+                                    <summary class="cursor-pointer text-emerald-500">Edit set</summary>
+                                    <form id="edit-active-set-{{ item.index }}" action="{{ url_for('main.edit_workout', entry_id=item.workout.entry_id) }}" method="POST" class="active-edit-form mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <input type="hidden" name="date" value="{{ set.date }}">
+                                        <input type="hidden" name="session_name" value="{{ set.get('session_name', active_session_name) }}">
+                                        <label class="field-label">Category
+                                            <select name="muscle" class="form-control" onchange="updateEditExercises({{ item.index }})">
+                                                {% for category in exercises.keys() %}<option value="{{ category }}" {% if category == set.muscle %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                                            </select>
+                                        </label>
+                                        <label class="field-label">Exercise
+                                            <select name="exercise" class="form-control">
+                                                {% for exercise in exercises.get(set.muscle, []) %}<option value="{{ exercise }}" {% if exercise == set.exercise %}selected{% endif %}>{{ exercise }}</option>{% endfor %}
+                                            </select>
+                                        </label>
+                                        <label class="field-label">Set type
+                                            <select name="set_type" class="form-control" onchange="toggleEditCardioFields('{{ item.index }}', true)">
+                                                {% for type, label in [('working', 'Working set'), ('warmup', 'Warm-up'), ('drop', 'Drop set'), ('failure', 'To failure'), ('cardio', 'Cardio')] %}
+                                                <option value="{{ type }}" {% if set.get('set_type', 'working') == type %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </label>
+                                        <div class="edit-strength-fields contents">
+                                            <label class="field-label">Weight<input type="number" name="weight" step="0.5" min="0" value="{{ set.weight }}" class="form-control"></label>
+                                            <label class="field-label">Unit<select name="unit" class="form-control"><option value="kg" {% if set.get('unit', 'kg') == 'kg' %}selected{% endif %}>kg</option><option value="lb" {% if set.get('unit') == 'lb' %}selected{% endif %}>lb</option></select></label>
+                                            <label class="field-label">Reps<input type="number" name="reps" min="1" value="{{ set.reps }}" class="form-control"></label>
+                                            <label class="field-label">RPE<input type="number" name="rpe" min="1" max="10" value="{{ set.rpe }}" class="form-control"></label>
+                                        </div>
+                                        <div class="edit-cardio-fields contents hidden">
+                                            <label class="field-label">Distance<input type="number" name="distance" min="0" step="0.1" value="{{ set.get('distance', '') }}" class="form-control"></label>
+                                            <label class="field-label">Distance unit<select name="distance_unit" class="form-control"><option value="km" {% if set.get('distance_unit', 'km') == 'km' %}selected{% endif %}>km</option><option value="mi" {% if set.get('distance_unit') == 'mi' %}selected{% endif %}>mi</option></select></label>
+                                            <label class="field-label">Duration (min)<input type="number" name="duration" min="1" value="{{ set.get('duration', '') }}" class="form-control"></label>
+                                        </div>
+                                        <label class="field-label sm:col-span-2">Notes<textarea name="notes" maxlength="500" rows="2" class="form-control">{{ set.get('notes', '') }}</textarea></label>
+                                        <button type="submit" class="sm:col-span-2 px-4 py-2 bg-emerald-600 text-white rounded-lg">Save set</button>
+                                    </form>
+                                    <form action="{{ url_for('main.delete_workout', entry_id=item.workout.entry_id) }}" method="POST" class="mt-2" onsubmit="return confirm('Delete this set?')">
+                                        <button type="submit" class="text-rose-500 text-sm">Delete set</button>
+                                    </form>
+                                </details>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-slate-400">Sets you log in this session will appear here.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            </div>
+
+            <div class="log-side-column">
+            <div id="exercise-history-panel" class="workspace-card exercise-history-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
+                <h2 class="text-lg font-semibold text-emerald-500">Exercise history &amp; personal records</h2>
+                <p id="exercise-record-summary" class="text-sm text-slate-300"></p>
+                <ul id="exercise-history-list" class="space-y-2 text-sm text-slate-400"></ul>
+                <button type="button" onclick="copyPreviousSet()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm">Copy previous set</button>
+                <div id="progression-suggestion" class="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                    <div>
+                        <h3 class="font-medium text-emerald-400">Next-session suggestion</h3>
+                        <p id="progression-summary" class="mt-1 text-sm text-slate-400">Log strength sets to get a suggested next target.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="field-label">Rep goal
+                            <input type="number" id="progression-rep-goal" min="1" max="30" value="12" class="form-control">
+                        </label>
+                        <label class="field-label">Weight goal (optional)
+                            <input type="number" id="progression-weight-goal" min="0" step="0.5" placeholder="No limit" class="form-control">
+                        </label>
+                    </div>
+                    <button type="button" onclick="applyProgressionSuggestion()" class="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm">Use suggested target</button>
+                </div>
+            </div>
+
+            <div class="workspace-card rest-timer-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <h3 class="text-lg font-semibold mb-2 text-emerald-500">⏱️ Rest Timer</h3>
+                <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <select id="timer-duration" class="form-control w-auto">
+                        <option value="30">30 Seconds</option>
+                        <option value="45">45 Seconds</option>
+                        <option value="60" selected>60 Seconds</option>
+                        <option value="90">90 Seconds</option>
+                        <option value="120">120 Seconds</option>
+                        <option value="180">180 Seconds</option>
+                    </select>
+                    <button type="button" id="timer-start" onclick="startTimer()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-medium transition">Start Timer</button>
+                    <button type="button" id="timer-stop" onclick="stopTimer()" disabled class="px-6 py-2 bg-rose-700 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition">Stop Timer</button>
+                </div>
+                <div id="timer-display" role="status" aria-live="polite" class="mt-4 text-2xl font-mono text-emerald-500">Timer ready</div>
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-800 pt-4">
+                    <label class="field-label">Default rest for set type
+                        <select id="set-type-rest-preset" class="form-control">
+                            {% for seconds in [30, 45, 60, 90, 120, 180] %}<option value="{{ seconds }}">{{ seconds }} seconds</option>{% endfor %}
+                        </select>
+                    </label>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <button type="button" onclick="saveRestPreset('set-type')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save set-type default</button>
+                        <button type="button" onclick="saveRestPreset('exercise')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm">Save for exercise</button>
+                    </div>
+                    <label class="sm:col-span-2 flex items-center gap-2 text-sm text-slate-300">
+                        <input type="checkbox" id="auto-start-rest" class="accent-emerald-500">
+                        Start the rest timer automatically after logging a set
+                    </label>
+                    <fieldset class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+                        <legend class="field-label mb-1">Timer alerts</legend>
+                        <label class="flex items-center gap-2 text-sm text-slate-300">
+                            <input type="checkbox" id="timer-sound-enabled" class="accent-emerald-500" checked>
+                            Sound when rest ends
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-300">
+                            <input type="checkbox" id="timer-vibration-enabled" class="accent-emerald-500" checked>
+                            Vibrate when supported
+                        </label>
+                    </fieldset>
+                    <p id="rest-preset-status" class="sm:col-span-2 text-xs text-slate-500" aria-live="polite"></p>
+                </div>
+            </div>
+            </div>
+        </section>
+
